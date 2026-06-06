@@ -1,0 +1,430 @@
+basePath: /api/v1
+definitions:
+  domain.Debt:
+    properties:
+      amount:
+        type: number
+      from_user_id:
+        type: integer
+      to_user_id:
+        type: integer
+    type: object
+  domain.Expense:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      description:
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      paid_by:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Relationships
+      paid_by_id:
+        type: integer
+      splits:
+        items:
+          $ref: '#/definitions/domain.ExpenseSplit'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  domain.ExpenseSplit:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      expense_id:
+        type: integer
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Relationships
+      user_id:
+        type: integer
+    type: object
+  domain.Group:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      expenses:
+        items:
+          $ref: '#/definitions/domain.Expense'
+        type: array
+      id:
+        type: integer
+      members:
+        description: Relationships
+        items:
+          $ref: '#/definitions/domain.User'
+        type: array
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.AddExpenseRequest:
+    properties:
+      amount:
+        example: 120.5
+        type: number
+      description:
+        example: Dinner
+        type: string
+      group_id:
+        example: 1
+        type: integer
+      paid_by_id:
+        example: 1
+        type: integer
+    type: object
+  handler.CreateGroupRequest:
+    properties:
+      creator_id:
+        example: 1
+        type: integer
+      name:
+        example: Trip to Paris
+        type: string
+    type: object
+  handler.CreateUserRequest:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      name:
+        example: John Doe
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: API server for SplitEasy app (Splitwise style expense sharing).
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: SplitEasy API
+  version: "1.0"
+paths:
+  /auth/google/callback:
+    get:
+      description: Handles the callback from Google OAuth2, exchanges authorization
+        code for user JWT token.
+      parameters:
+      - description: OAuth state validation
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      responses:
+        "200":
+          description: JSON token response
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Handle Google Login Callback
+      tags:
+      - auth
+  /auth/google/login:
+    get:
+      description: Redirects client to Google OAuth2 consent page.
+      responses:
+        "307":
+          description: Temporary Redirect to Google OAuth
+      summary: Redirect to Google Login URL
+      tags:
+      - auth
+  /expenses:
+    post:
+      consumes:
+      - application/json
+      description: Adds a new expense to a group and automatically splits it.
+      parameters:
+      - description: Expense Info
+        in: body
+        name: expense
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AddExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Expense'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Add an expense
+      tags:
+      - expenses
+  /groups:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new group for sharing expenses.
+      parameters:
+      - description: Group Info
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Group'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Create a group
+      tags:
+      - groups
+  /groups/{groupId}/expenses:
+    get:
+      description: Retrieves list of expenses for a specific group.
+      parameters:
+      - description: Group ID
+        in: path
+        name: groupId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Expense'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get expenses of a group
+      tags:
+      - expenses
+  /groups/{id}:
+    get:
+      description: Retrieves a group by ID.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Group'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get a group
+      tags:
+      - groups
+  /groups/{id}/balances:
+    get:
+      description: Calculates the debts within a group to settle accounts.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Debt'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get balances/debts of a group
+      tags:
+      - groups
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user in the system.
+      parameters:
+      - description: User Info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Create a user
+      tags:
+      - users
+  /users/{id}:
+    get:
+      description: Retrieves a user by ID.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get a user
+      tags:
+      - users
+securityDefinitions:
+  JWT:
+    description: Type "Bearer <your-jwt-token>" to authenticate.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

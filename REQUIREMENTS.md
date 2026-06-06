@@ -1,0 +1,14 @@
+- Quiero crear un proyecto Go web. Para ello quiero usar el mejor framework con las mejores practicas. 
+- El proyecto se va a llamar: SplitEasy y va a ser el backend para una app que gestiona gastos compartidos (al estilo splitwise).
+- Quiero que tenga las siguientes funcionalidades:
+    - Usuarios que puedan registrarse y loguearse usando Google OAuth.
+    - Los usuarios puedan crear "grupos" y compartir gastos dentro de los mismos.
+    - Los usuarios puedan agregar gastos indicando quien pagó, cuanto gastó y entre quienes se divide el gasto (solo entre los miembros del grupo).
+    - Debajo del grupo, quiero que tenga el detalle de todos los gastos, y que calcule lo que cada uno tiene que pagarle a otro para saldar las cuentas.
+    - Quiero que tenga funcionalidad para: "liquidar" cuentas, es decir, marcar gastos como pagados.
+    - Quiero que tenga funcionalidad para abrir la camara y escanear un ticket y/o subirla una foto de cualquier ticket, parsearlo con IA y cargar directamente el gasto (indicando nombre del comercio, fecha y hora, monto total y los productos o servicios comprados con su precio).
+    - Ademas de "dividir por partes iguales", quiero que tenga funcionalidad para dividir gastos de forma variada:
+        - Por porcentajes (ej: 50% Juan, 50% Maria)
+        - Por cantidades fijas (ej: 100 pesos Juan, 200 pesos Maria)
+        - Por cantidades variables (ej: 2 unidades de pan Juan, 4 unidades de pan Maria)
+- Quiero que use las mejores practicas de Go, y que tenga un diseño modular y escalable.
