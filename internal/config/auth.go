@@ -12,7 +12,7 @@ var (
 
 func InitAuth() {
 	GoogleOAuthConfig = &oauth2.Config{
-		RedirectURL:  "http://localhost:8080/api/v1/auth/google/callback",
+		RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 		ClientID:     getEnv("GOOGLE_CLIENT_ID", "mock-client-id"),
 		ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", "mock-client-secret"),
 		Scopes: []string{
