@@ -32,9 +32,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if present (local development only — ignored in production)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, reading config from environment variables")
+	}
+
 	// Initialize Database and Auth Configurations
 	config.ConnectDB()
 	config.InitAuth()

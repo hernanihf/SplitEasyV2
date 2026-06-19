@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: spliteasy_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: spliteasy
+    ports:
+      - "5432:5432"
+    volumes:
+      - spliteasy_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: spliteasy_api
+    restart: on-failure
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: spliteasy
+    ports:
+      - "8080:8080"
+
+volumes:
+  spliteasy_pgdata:
