@@ -6,8 +6,9 @@ import (
 )
 
 var (
-	GoogleOAuthConfig *oauth2.Config
-	JWTSecret         []byte
+	GoogleOAuthConfig   *oauth2.Config
+	JWTSecret           []byte
+	FrontendRedirectURL string
 )
 
 func InitAuth() {
@@ -23,4 +24,6 @@ func InitAuth() {
 	}
 
 	JWTSecret = []byte(getEnv("JWT_SECRET", "super-secret-key-change-me"))
+
+	FrontendRedirectURL = getEnv("FRONTEND_REDIRECT_URL", "http://localhost:8081/auth/callback")
 }

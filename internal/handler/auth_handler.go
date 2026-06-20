@@ -1,8 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
+	"net/url"
+	"spliteasy/internal/config"
 	"spliteasy/internal/service"
 )
 
@@ -29,11 +30,11 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 // GoogleCallback godoc
 // @Summary      Handle Google Login Callback
-// @Description  Handles the callback from Google OAuth2, exchanges authorization code for user JWT token.
+// @Description  Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token as a query param.
 // @Tags         auth
 // @Param        state  query     string  true  "OAuth state validation"
 // @Param        code   query     string  true  "Authorization code"
-// @Success      200    {object}  map[string]string "JSON token response"
+// @Success      307    "Temporary Redirect to FRONTEND_REDIRECT_URL?token=..."
 // @Failure      400    {string}  string "Bad Request"
 // @Failure      500    {string}  string "Internal Server Error"
 // @Router       /auth/google/callback [get]
@@ -56,8 +57,14 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"token": token,
-	})
+	redirectURL, err := url.Parse(config.FrontendRedirectURL)
+	if err != nil {
+		http.Error(w, "invalid frontend redirect url: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	query := redirectURL.Query()
+	query.Set("token", token)
+	redirectURL.RawQuery = query.Encode()
+
+	http.Redirect(w, r, redirectURL.String(), http.StatusTemporaryRedirect)
 }
