@@ -17,16 +17,23 @@ func NewExpenseHandler(expenseService service.ExpenseService) *ExpenseHandler {
 	return &ExpenseHandler{expenseService}
 }
 
+type SplitInputRequest struct {
+	UserID uint    `json:"user_id" example:"2"`
+	Value  float64 `json:"value" example:"50"`
+}
+
 type AddExpenseRequest struct {
-	GroupID     uint    `json:"group_id" example:"1"`
-	PaidByID    uint    `json:"paid_by_id" example:"1"`
-	Description string  `json:"description" example:"Dinner"`
-	Amount      float64 `json:"amount" example:"120.50"`
+	GroupID     uint                `json:"group_id" example:"1"`
+	PaidByID    uint                `json:"paid_by_id" example:"1"`
+	Description string              `json:"description" example:"Dinner"`
+	Amount      float64             `json:"amount" example:"120.50"`
+	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
+	Splits      []SplitInputRequest `json:"splits"`
 }
 
 // AddExpense godoc
 // @Summary      Add an expense
-// @Description  Adds a new expense to a group and automatically splits it.
+// @Description  Adds a new expense to a group and splits it. split_method can be "equal" (default; splits among all members, or the given subset), "percentage" (splits values must add up to 100), "fixed" (splits values must add up to amount), or "shares" (splits proportionally to relative weights).
 // @Tags         expenses
 // @Accept       json
 // @Produce      json
@@ -44,9 +51,21 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expense, err := h.expenseService.AddExpense(req.GroupID, req.PaidByID, req.Description, req.Amount)
+	splitInputs := make([]service.SplitInput, len(req.Splits))
+	for i, s := range req.Splits {
+		splitInputs[i] = service.SplitInput{UserID: s.UserID, Value: s.Value}
+	}
+
+	expense, err := h.expenseService.AddExpense(
+		req.GroupID,
+		req.PaidByID,
+		req.Description,
+		req.Amount,
+		service.SplitMethod(req.SplitMethod),
+		splitInputs,
+	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

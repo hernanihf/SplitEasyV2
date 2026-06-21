@@ -87,7 +87,7 @@ const docTemplate = `{
                         "JWT": []
                     }
                 ],
-                "description": "Adds a new expense to a group and automatically splits it.",
+                "description": "Adds a new expense to a group and splits it. split_method can be \"equal\" (default; splits among all members, or the given subset), \"percentage\" (splits values must add up to 100), \"fixed\" (splits values must add up to amount), or \"shares\" (splits proportionally to relative weights).",
                 "consumes": [
                     "application/json"
                 ],
@@ -759,6 +759,22 @@ const docTemplate = `{
                 "paid_by_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "split_method": {
+                    "type": "string",
+                    "enum": [
+                        "equal",
+                        "percentage",
+                        "fixed",
+                        "shares"
+                    ],
+                    "example": "equal"
+                },
+                "splits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.SplitInputRequest"
+                    }
                 }
             }
         },
@@ -798,6 +814,19 @@ const docTemplate = `{
                 "to_user_id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "handler.SplitInputRequest": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "value": {
+                    "type": "number",
+                    "example": 50
                 }
             }
         }

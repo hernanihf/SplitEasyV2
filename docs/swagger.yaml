@@ -123,6 +123,18 @@ definitions:
       paid_by_id:
         example: 1
         type: integer
+      split_method:
+        enum:
+        - equal
+        - percentage
+        - fixed
+        - shares
+        example: equal
+        type: string
+      splits:
+        items:
+          $ref: '#/definitions/handler.SplitInputRequest'
+        type: array
     type: object
   handler.CreateGroupRequest:
     properties:
@@ -150,6 +162,15 @@ definitions:
       to_user_id:
         example: 1
         type: integer
+    type: object
+  handler.SplitInputRequest:
+    properties:
+      user_id:
+        example: 2
+        type: integer
+      value:
+        example: 50
+        type: number
     type: object
 host: localhost:8080
 info:
@@ -208,7 +229,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Adds a new expense to a group and automatically splits it.
+      description: Adds a new expense to a group and splits it. split_method can be
+        "equal" (default; splits among all members, or the given subset), "percentage"
+        (splits values must add up to 100), "fixed" (splits values must add up to
+        amount), or "shares" (splits proportionally to relative weights).
       parameters:
       - description: Expense Info
         in: body

@@ -144,5 +144,9 @@ docker run -p 8080:8080 --env-file .env spliteasy
 *   `POST /api/v1/groups/{id}/settlements` - Record a payment between two group members, reducing their outstanding balance ("settle up").
 
 #### Expenses
-*   `POST /api/v1/expenses` - Create a new expense with a split.
+*   `POST /api/v1/expenses` - Create a new expense and split it among group members. `split_method` can be:
+    *   `equal` (default) - splits evenly among all group members, or the given `splits[].user_id` subset.
+    *   `percentage` - splits according to `splits[].value` (0-100), which must add up to 100.
+    *   `fixed` - splits according to `splits[].value` exact amounts, which must add up to the total.
+    *   `shares` - splits proportionally to `splits[].value` relative weights/units.
 *   `GET /api/v1/groups/{groupId}/expenses` - List all expenses logged in a group.
