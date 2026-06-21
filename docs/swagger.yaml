@@ -75,6 +75,27 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.Settlement:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      from_user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Relationships
+      from_user_id:
+        type: integer
+      group_id:
+        type: integer
+      id:
+        type: integer
+      to_user:
+        $ref: '#/definitions/domain.User'
+      to_user_id:
+        type: integer
+    type: object
   domain.User:
     properties:
       created_at:
@@ -105,9 +126,6 @@ definitions:
     type: object
   handler.CreateGroupRequest:
     properties:
-      creator_id:
-        example: 1
-        type: integer
       name:
         example: Trip to Paris
         type: string
@@ -120,6 +138,18 @@ definitions:
       name:
         example: John Doe
         type: string
+    type: object
+  handler.SettleDebtRequest:
+    properties:
+      amount:
+        example: 50
+        type: number
+      from_user_id:
+        example: 2
+        type: integer
+      to_user_id:
+        example: 1
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -138,7 +168,8 @@ paths:
   /auth/google/callback:
     get:
       description: Handles the callback from Google OAuth2, exchanges authorization
-        code for user JWT token.
+        code for a user JWT, then redirects to the frontend with the token as a query
+        param.
       parameters:
       - description: OAuth state validation
         in: query
@@ -151,12 +182,8 @@ paths:
         required: true
         type: string
       responses:
-        "200":
-          description: JSON token response
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+        "307":
+          description: Temporary Redirect to FRONTEND_REDIRECT_URL?token=...
         "400":
           description: Bad Request
           schema:
@@ -214,10 +241,35 @@ paths:
       tags:
       - expenses
   /groups:
+    get:
+      description: Retrieves all groups the authenticated user is a member of.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Group'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: List groups for the authenticated user
+      tags:
+      - groups
     post:
       consumes:
       - application/json
-      description: Creates a new group for sharing expenses.
+      description: Creates a new group for sharing expenses. The authenticated user
+        becomes its creator and first member.
       parameters:
       - description: Group Info
         in: body
@@ -350,6 +402,48 @@ paths:
       security:
       - JWT: []
       summary: Get balances/debts of a group
+      tags:
+      - groups
+  /groups/{id}/settlements:
+    post:
+      consumes:
+      - application/json
+      description: Records a payment between two group members, reducing their outstanding
+        balance.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Settlement Info
+        in: body
+        name: settlement
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SettleDebtRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Settlement'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Settle a debt
       tags:
       - groups
   /users:

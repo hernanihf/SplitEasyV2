@@ -49,12 +49,13 @@ func main() {
 	userRepo := repository.NewUserRepository(config.DB)
 	groupRepo := repository.NewGroupRepository(config.DB)
 	expenseRepo := repository.NewExpenseRepository(config.DB)
+	settlementRepo := repository.NewSettlementRepository(config.DB)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
 	groupService := service.NewGroupService(groupRepo, userRepo)
 	expenseService := service.NewExpenseService(expenseRepo, groupRepo)
-	balanceService := service.NewBalanceService(expenseRepo, groupRepo)
+	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
 	authService := service.NewAuthService(userRepo)
 
 	// 3. Init Handlers
@@ -101,6 +102,7 @@ func main() {
 		r.Get("/groups", groupHandler.ListGroups)
 		r.Get("/groups/{id}", groupHandler.GetGroup)
 		r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
+		r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
 
 		// Expenses
 		r.Post("/expenses", expenseHandler.AddExpense)

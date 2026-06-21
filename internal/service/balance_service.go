@@ -9,15 +9,21 @@ import (
 
 type BalanceService interface {
 	CalculateGroupDebts(groupID uint) ([]domain.Debt, error)
+	SettleDebt(groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error)
 }
 
 type balanceService struct {
-	expenseRepo repository.ExpenseRepository
-	groupRepo   repository.GroupRepository
+	expenseRepo    repository.ExpenseRepository
+	groupRepo      repository.GroupRepository
+	settlementRepo repository.SettlementRepository
 }
 
-func NewBalanceService(expenseRepo repository.ExpenseRepository, groupRepo repository.GroupRepository) BalanceService {
-	return &balanceService{expenseRepo, groupRepo}
+func NewBalanceService(
+	expenseRepo repository.ExpenseRepository,
+	groupRepo repository.GroupRepository,
+	settlementRepo repository.SettlementRepository,
+) BalanceService {
+	return &balanceService{expenseRepo, groupRepo, settlementRepo}
 }
 
 func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error) {
@@ -27,6 +33,11 @@ func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error
 	}
 
 	expenses, err := s.expenseRepo.GetByGroupID(groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	settlements, err := s.settlementRepo.GetByGroupID(groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +53,13 @@ func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error
 		for _, split := range exp.Splits {
 			balancesMap[split.UserID] -= split.Amount
 		}
+	}
+
+	// Settlements reduce what the payer still owes and what the receiver is still owed,
+	// regardless of who the outstanding debt ends up being matched against below.
+	for _, settlement := range settlements {
+		balancesMap[settlement.FromUserID] += settlement.Amount
+		balancesMap[settlement.ToUserID] -= settlement.Amount
 	}
 
 	// 2. Separate into debtors and creditors
@@ -97,4 +115,30 @@ func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error
 	}
 
 	return debts, nil
+}
+
+func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error) {
+	if amount <= 0 {
+		return nil, errors.New("settlement amount must be positive")
+	}
+	if fromUserID == toUserID {
+		return nil, errors.New("from_user_id and to_user_id must differ")
+	}
+
+	if _, err := s.groupRepo.GetByID(groupID); err != nil {
+		return nil, errors.New("group not found")
+	}
+
+	settlement := &domain.Settlement{
+		GroupID:    groupID,
+		FromUserID: fromUserID,
+		ToUserID:   toUserID,
+		Amount:     amount,
+	}
+
+	if err := s.settlementRepo.Create(settlement); err != nil {
+		return nil, err
+	}
+
+	return settlement, nil
 }

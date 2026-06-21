@@ -26,7 +26,7 @@ const docTemplate = `{
     "paths": {
         "/auth/google/callback": {
             "get": {
-                "description": "Handles the callback from Google OAuth2, exchanges authorization code for user JWT token.",
+                "description": "Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token as a query param.",
                 "tags": [
                     "auth"
                 ],
@@ -48,14 +48,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "JSON token response",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
+                    "307": {
+                        "description": "Temporary Redirect to FRONTEND_REDIRECT_URL?token=..."
                     },
                     "400": {
                         "description": "Bad Request",
@@ -144,13 +138,51 @@ const docTemplate = `{
             }
         },
         "/groups": {
+            "get": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Retrieves all groups the authenticated user is a member of.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "List groups for the authenticated user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Group"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
                         "JWT": []
                     }
                 ],
-                "description": "Creates a new group for sharing expenses.",
+                "description": "Creates a new group for sharing expenses. The authenticated user becomes its creator and first member.",
                 "consumes": [
                     "application/json"
                 ],
@@ -339,6 +371,70 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/domain.Debt"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{id}/settlements": {
+            "post": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Records a payment between two group members, reducing their outstanding balance.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Settle a debt",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settlement Info",
+                        "name": "settlement",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SettleDebtRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Settlement"
                         }
                     },
                     "400": {
@@ -591,6 +687,40 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Settlement": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "from_user": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.User"
+                        }
+                    ]
+                },
+                "from_user_id": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "to_user": {
+                    "$ref": "#/definitions/domain.User"
+                },
+                "to_user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.User": {
             "type": "object",
             "properties": {
@@ -635,10 +765,6 @@ const docTemplate = `{
         "handler.CreateGroupRequest": {
             "type": "object",
             "properties": {
-                "creator_id": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "name": {
                     "type": "string",
                     "example": "Trip to Paris"
@@ -655,6 +781,23 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "John Doe"
+                }
+            }
+        },
+        "handler.SettleDebtRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 50
+                },
+                "from_user_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "to_user_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         }

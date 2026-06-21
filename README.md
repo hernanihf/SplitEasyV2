@@ -79,6 +79,9 @@ JWT_SECRET=your_jwt_secret_key
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
+
+# Frontend URL the user is redirected to after Google login, with the JWT as a `token` query param
+FRONTEND_REDIRECT_URL=http://localhost:8081/auth/callback
 ```
 
 ### Installation
@@ -125,7 +128,7 @@ docker run -p 8080:8080 --env-file .env spliteasy
 
 *   `GET /ping` - Health check (returns database/application status).
 *   `GET /api/v1/auth/google/login` - Initiates Google OAuth2 login flow.
-*   `GET /api/v1/auth/google/callback` - Callback for Google OAuth2 token exchange.
+*   `GET /api/v1/auth/google/callback` - Handles the Google OAuth2 callback, then redirects to `FRONTEND_REDIRECT_URL?token=<JWT>`.
 
 ### Protected Routes (Requires Header: `Authorization: Bearer <JWT_TOKEN>`)
 
@@ -134,9 +137,11 @@ docker run -p 8080:8080 --env-file .env spliteasy
 *   `GET /api/v1/users/{id}` - Retrieve user details by ID.
 
 #### Groups
-*   `POST /api/v1/groups` - Create a new expense sharing group.
+*   `POST /api/v1/groups` - Create a new expense sharing group. The authenticated user becomes its creator and first member.
+*   `GET /api/v1/groups` - List the groups the authenticated user belongs to.
 *   `GET /api/v1/groups/{id}` - Get group details (including members).
-*   `GET /api/v1/groups/{id}/balances` - Get total balances and debts (who owes who) for a specific group.
+*   `GET /api/v1/groups/{id}/balances` - Get outstanding balances and debts (who owes who) for a specific group, net of recorded settlements.
+*   `POST /api/v1/groups/{id}/settlements` - Record a payment between two group members, reducing their outstanding balance ("settle up").
 
 #### Expenses
 *   `POST /api/v1/expenses` - Create a new expense with a split.
