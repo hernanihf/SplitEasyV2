@@ -9,6 +9,7 @@ import (
 type GroupService interface {
 	CreateGroup(name string, creatorID uint) (*domain.Group, error)
 	GetGroup(id uint) (*domain.Group, error)
+	ListGroupsForUser(userID uint) ([]domain.Group, error)
 }
 
 type groupService struct {
@@ -46,4 +47,8 @@ func (s *groupService) CreateGroup(name string, creatorID uint) (*domain.Group, 
 
 func (s *groupService) GetGroup(id uint) (*domain.Group, error) {
 	return s.groupRepo.GetByID(id)
+}
+
+func (s *groupService) ListGroupsForUser(userID uint) ([]domain.Group, error) {
+	return s.groupRepo.GetByUserID(userID)
 }

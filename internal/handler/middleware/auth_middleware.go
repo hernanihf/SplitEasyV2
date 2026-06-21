@@ -53,3 +53,13 @@ func JWTAuth(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// UserIDFromContext extracts the authenticated user's ID injected by JWTAuth.
+// JWT numeric claims decode as float64, so the conversion happens here.
+func UserIDFromContext(ctx context.Context) (uint, bool) {
+	userID, ok := ctx.Value(UserIDKey).(float64)
+	if !ok {
+		return 0, false
+	}
+	return uint(userID), true
+}

@@ -98,6 +98,7 @@ func main() {
 
 		// Groups
 		r.Post("/groups", groupHandler.CreateGroup)
+		r.Get("/groups", groupHandler.ListGroups)
 		r.Get("/groups/{id}", groupHandler.GetGroup)
 		r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
 

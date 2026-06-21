@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
 
@@ -18,13 +19,12 @@ func NewGroupHandler(groupService service.GroupService) *GroupHandler {
 }
 
 type CreateGroupRequest struct {
-	Name      string `json:"name" example:"Trip to Paris"`
-	CreatorID uint   `json:"creator_id" example:"1"`
+	Name string `json:"name" example:"Trip to Paris"`
 }
 
 // CreateGroup godoc
 // @Summary      Create a group
-// @Description  Creates a new group for sharing expenses.
+// @Description  Creates a new group for sharing expenses. The authenticated user becomes its creator and first member.
 // @Tags         groups
 // @Accept       json
 // @Produce      json
@@ -36,13 +36,19 @@ type CreateGroupRequest struct {
 // @Security     JWT
 // @Router       /groups [post]
 func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
 	var req CreateGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	group, err := h.groupService.CreateGroup(req.Name, req.CreatorID)
+	group, err := h.groupService.CreateGroup(req.Name, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -81,4 +87,31 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(group)
+}
+
+// ListGroups godoc
+// @Summary      List groups for the authenticated user
+// @Description  Retrieves all groups the authenticated user is a member of.
+// @Tags         groups
+// @Produce      json
+// @Success      200  {array}   domain.Group
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /groups [get]
+func (h *GroupHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	groups, err := h.groupService.ListGroupsForUser(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(groups)
 }

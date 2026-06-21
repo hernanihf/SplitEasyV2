@@ -9,6 +9,7 @@ import (
 type GroupRepository interface {
 	Create(group *domain.Group) error
 	GetByID(id uint) (*domain.Group, error)
+	GetByUserID(userID uint) ([]domain.Group, error)
 }
 
 type groupRepository struct {
@@ -30,4 +31,16 @@ func (r *groupRepository) GetByID(id uint) (*domain.Group, error) {
 		return nil, err
 	}
 	return &group, nil
+}
+
+func (r *groupRepository) GetByUserID(userID uint) ([]domain.Group, error) {
+	var groups []domain.Group
+	err := r.db.Preload("Members").
+		Joins("JOIN group_users ON group_users.group_id = groups.id").
+		Where("group_users.user_id = ?", userID).
+		Find(&groups).Error
+	if err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
