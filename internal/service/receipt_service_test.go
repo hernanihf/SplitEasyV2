@@ -46,9 +46,28 @@ func TestParseReceipt_RejectsEmptyImage(t *testing.T) {
 func TestParseReceipt_RejectsUnsupportedMimeType(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022")
 
-	_, err := svc.ParseReceipt([]byte("fake-image-bytes"), "application/pdf")
+	_, err := svc.ParseReceipt([]byte("fake-bytes"), "text/plain")
 	if err == nil {
 		t.Error("expected error for unsupported mime type")
+	}
+}
+
+func TestParseReceipt_AcceptsPDFAsDocumentBlock(t *testing.T) {
+	body := `{"content":[{"type":"text","text":"{\"merchant_name\":\"Acme\",\"date\":\"\",\"total_amount\":0,\"items\":[]}"}]}`
+	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
+	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022")
+
+	_, err := svc.ParseReceipt([]byte("fake-pdf-bytes"), "application/pdf")
+	if err != nil {
+		t.Fatalf("unexpected error scanning a PDF: %v", err)
+	}
+
+	sentBody, _ := io.ReadAll(doer.lastReq.Body)
+	if !bytes.Contains(sentBody, []byte(`"type":"document"`)) {
+		t.Errorf("expected a document content block for a PDF, got: %s", sentBody)
+	}
+	if !bytes.Contains(sentBody, []byte(`"media_type":"application/pdf"`)) {
+		t.Errorf("expected media_type application/pdf in the request, got: %s", sentBody)
 	}
 }
 

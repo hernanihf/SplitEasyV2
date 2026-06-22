@@ -465,7 +465,7 @@ const docTemplate = `{
                         "JWT": []
                     }
                 ],
-                "description": "Parses a photographed or scanned receipt/ticket using AI and returns the extracted merchant, date, total and line items, for prefilling a new expense.",
+                "description": "Parses a photographed or scanned receipt/ticket/invoice using AI and returns the extracted merchant, date, total and line items, for prefilling a new expense. Accepts both images and PDFs.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -475,11 +475,11 @@ const docTemplate = `{
                 "tags": [
                     "expenses"
                 ],
-                "summary": "Scan a receipt photo",
+                "summary": "Scan a receipt image or PDF",
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "Receipt photo (jpeg, png, webp or gif)",
+                        "description": "Receipt file (jpeg, png, webp, gif or pdf)",
                         "name": "image",
                         "in": "formData",
                         "required": true

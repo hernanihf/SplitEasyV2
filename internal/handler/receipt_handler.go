@@ -17,12 +17,12 @@ func NewReceiptHandler(receiptService service.ReceiptService) *ReceiptHandler {
 }
 
 // ScanReceipt godoc
-// @Summary      Scan a receipt photo
-// @Description  Parses a photographed or scanned receipt/ticket using AI and returns the extracted merchant, date, total and line items, for prefilling a new expense.
+// @Summary      Scan a receipt image or PDF
+// @Description  Parses a photographed or scanned receipt/ticket/invoice using AI and returns the extracted merchant, date, total and line items, for prefilling a new expense. Accepts both images and PDFs.
 // @Tags         expenses
 // @Accept       multipart/form-data
 // @Produce      json
-// @Param        image  formData  file  true  "Receipt photo (jpeg, png, webp or gif)"
+// @Param        image  formData  file  true  "Receipt file (jpeg, png, webp, gif or pdf)"
 // @Success      200    {object}  domain.ReceiptScan
 // @Failure      400    {string}  string  "Bad Request"
 // @Failure      401    {string}  string  "Unauthorized"

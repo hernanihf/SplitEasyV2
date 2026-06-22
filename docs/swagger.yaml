@@ -494,10 +494,11 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Parses a photographed or scanned receipt/ticket using AI and returns
-        the extracted merchant, date, total and line items, for prefilling a new expense.
+      description: Parses a photographed or scanned receipt/ticket/invoice using AI
+        and returns the extracted merchant, date, total and line items, for prefilling
+        a new expense. Accepts both images and PDFs.
       parameters:
-      - description: Receipt photo (jpeg, png, webp or gif)
+      - description: Receipt file (jpeg, png, webp, gif or pdf)
         in: formData
         name: image
         required: true
@@ -523,7 +524,7 @@ paths:
             type: string
       security:
       - JWT: []
-      summary: Scan a receipt photo
+      summary: Scan a receipt image or PDF
       tags:
       - expenses
   /users:

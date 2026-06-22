@@ -21,16 +21,26 @@ const (
 	// stay comfortably under that.
 	MaxReceiptImageBytes = 4 * 1024 * 1024
 
-	receiptPrompt = `You are extracting structured data from a photo of a store receipt or ticket. Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
+	receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
 {"merchant_name": string, "date": string (ISO 8601 "YYYY-MM-DD" if found, else ""), "total_amount": number, "items": [{"description": string, "price": number}]}
 If a field cannot be determined, use an empty string or 0. Amounts must be plain numbers without currency symbols.`
 )
 
 var supportedReceiptMimeTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/webp": true,
-	"image/gif":  true,
+	"image/jpeg":      true,
+	"image/png":       true,
+	"image/webp":      true,
+	"image/gif":       true,
+	"application/pdf": true,
+}
+
+// contentBlockTypeFor maps an upload's MIME type to the Anthropic content block
+// kind: PDFs go in a "document" block, everything else in an "image" block.
+func contentBlockTypeFor(mimeType string) string {
+	if mimeType == "application/pdf" {
+		return "document"
+	}
+	return "image"
 }
 
 // httpDoer is satisfied by *http.Client; kept as an interface so tests can
@@ -53,16 +63,17 @@ func NewReceiptService(httpClient httpDoer, apiKey, model string) ReceiptService
 	return &receiptService{httpClient, apiKey, model}
 }
 
-type anthropicImageSource struct {
+// anthropicSource is the base64 payload shared by "image" and "document" blocks.
+type anthropicSource struct {
 	Type      string `json:"type"`
 	MediaType string `json:"media_type"`
 	Data      string `json:"data"`
 }
 
 type anthropicContentBlock struct {
-	Type   string                `json:"type"`
-	Text   string                `json:"text,omitempty"`
-	Source *anthropicImageSource `json:"source,omitempty"`
+	Type   string           `json:"type"`
+	Text   string           `json:"text,omitempty"`
+	Source *anthropicSource `json:"source,omitempty"`
 }
 
 type anthropicMessage struct {
@@ -94,10 +105,10 @@ func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*doma
 		return nil, errors.New("image is empty")
 	}
 	if len(imageBytes) > MaxReceiptImageBytes {
-		return nil, fmt.Errorf("image is too large (max %d bytes)", MaxReceiptImageBytes)
+		return nil, fmt.Errorf("file is too large (max %d bytes)", MaxReceiptImageBytes)
 	}
 	if !supportedReceiptMimeTypes[mimeType] {
-		return nil, fmt.Errorf("unsupported image type %q", mimeType)
+		return nil, fmt.Errorf("unsupported file type %q", mimeType)
 	}
 
 	reqBody := anthropicRequest{
@@ -108,8 +119,8 @@ func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*doma
 				Role: "user",
 				Content: []anthropicContentBlock{
 					{
-						Type: "image",
-						Source: &anthropicImageSource{
+						Type: contentBlockTypeFor(mimeType),
+						Source: &anthropicSource{
 							Type:      "base64",
 							MediaType: mimeType,
 							Data:      base64.StdEncoding.EncodeToString(imageBytes),
