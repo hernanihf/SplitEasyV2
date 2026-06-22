@@ -2,6 +2,15 @@
 
 SplitEasy is a robust, performant backend API written in Go, designed to manage shared expenses within groups (similar to Splitwise). It is built using clean architecture principles, emphasizing strict separation of concerns, SOLID design patterns, and high testability.
 
+## 🌐 Deployment
+
+| Component | URL | Hosting |
+|---|---|---|
+| Backend API | https://spliteasyv2.onrender.com | Render (Docker web service) |
+| Frontend (PWA) | https://spliteasy-app.onrender.com | Render (static site, Expo web export) |
+
+The frontend is an Expo + React Native Web app exported to a static site (`npx expo export -p web` → `dist/`). It reads the API base URL from the build-time env var `EXPO_PUBLIC_API_URL`. The API enables CORS so the browser/PWA can call it cross-origin.
+
 ## 🚀 Key Features
 
 *   **User Management & Security:**
