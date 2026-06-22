@@ -7,5 +7,5 @@ var (
 
 func InitAnthropic() {
 	AnthropicAPIKey = getEnv("ANTHROPIC_API_KEY", "")
-	AnthropicModel = getEnv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+	AnthropicModel = getEnv("ANTHROPIC_MODEL", "claude-haiku-4-5")
 }

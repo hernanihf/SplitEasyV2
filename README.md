@@ -85,7 +85,7 @@ FRONTEND_REDIRECT_URL=http://localhost:8081/auth/callback
 
 # Anthropic (Claude) — used to parse photographed receipts. Get one at: https://console.anthropic.com
 ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_MODEL=claude-haiku-4-5
 ```
 
 ### Installation
@@ -111,6 +111,14 @@ ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
     ```bash
     go test ./...
     ```
+
+### Testing
+
+*   **Automated tests** (business logic: split methods, balances, settlements, AI response parsing):
+    ```bash
+    go test ./internal/service/...
+    ```
+*   **Manual end-to-end tests** — reproducible `curl` recipes for every endpoint (named test cases, expected responses, and the real AI receipt-scan output) are documented in [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md).
 
 ### Running with Docker
 
