@@ -75,6 +75,26 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.ReceiptItem:
+    properties:
+      description:
+        type: string
+      price:
+        type: number
+    type: object
+  domain.ReceiptScan:
+    properties:
+      date:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/domain.ReceiptItem'
+        type: array
+      merchant_name:
+        type: string
+      total_amount:
+        type: number
+    type: object
   domain.Settlement:
     properties:
       amount:
@@ -470,6 +490,42 @@ paths:
       summary: Settle a debt
       tags:
       - groups
+  /receipts/scan:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Parses a photographed or scanned receipt/ticket using AI and returns
+        the extracted merchant, date, total and line items, for prefilling a new expense.
+      parameters:
+      - description: Receipt photo (jpeg, png, webp or gif)
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.ReceiptScan'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Scan a receipt photo
+      tags:
+      - expenses
   /users:
     post:
       consumes:

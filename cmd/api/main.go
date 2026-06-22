@@ -44,6 +44,7 @@ func main() {
 	// Initialize Database and Auth Configurations
 	config.ConnectDB()
 	config.InitAuth()
+	config.InitAnthropic()
 
 	// 1. Init Repositories
 	userRepo := repository.NewUserRepository(config.DB)
@@ -57,6 +58,7 @@ func main() {
 	expenseService := service.NewExpenseService(expenseRepo, groupRepo)
 	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
 	authService := service.NewAuthService(userRepo)
+	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService)
@@ -64,6 +66,7 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	balanceHandler := handler.NewBalanceHandler(balanceService)
 	authHandler := handler.NewAuthHandler(authService)
+	receiptHandler := handler.NewReceiptHandler(receiptService)
 
 	r := chi.NewRouter()
 
@@ -107,6 +110,9 @@ func main() {
 		// Expenses
 		r.Post("/expenses", expenseHandler.AddExpense)
 		r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
+
+		// Receipts
+		r.Post("/receipts/scan", receiptHandler.ScanReceipt)
 	})
 
 	log.Println("Starting server on :8080...")

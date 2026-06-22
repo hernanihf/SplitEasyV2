@@ -20,8 +20,8 @@ SplitEasy is a robust, performant backend API written in Go, designed to manage 
 *   **Settlements & Balances:**
     *   Real-time balance calculations resolving "who owes how much to whom" efficiently.
     *   Settle up balances (marking debts as paid).
-*   **AI-Powered Ticket Scanner (Planned / WIP):**
-    *   Scan receipts, parse them using AI OCR, and automatically extract commerce name, date/time, total amount, and line items.
+*   **AI-Powered Ticket Scanner:**
+    *   Scan or upload a photo of a receipt; Claude (Anthropic) vision extracts the merchant name, date, total amount, and line items, ready to prefill a new expense.
 
 ---
 
@@ -82,6 +82,10 @@ GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
 
 # Frontend URL the user is redirected to after Google login, with the JWT as a `token` query param
 FRONTEND_REDIRECT_URL=http://localhost:8081/auth/callback
+
+# Anthropic (Claude) — used to parse photographed receipts. Get one at: https://console.anthropic.com
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 ```
 
 ### Installation
@@ -150,3 +154,6 @@ docker run -p 8080:8080 --env-file .env spliteasy
     *   `fixed` - splits according to `splits[].value` exact amounts, which must add up to the total.
     *   `shares` - splits proportionally to `splits[].value` relative weights/units.
 *   `GET /api/v1/groups/{groupId}/expenses` - List all expenses logged in a group.
+
+#### Receipts
+*   `POST /api/v1/receipts/scan` - Upload a receipt photo (`multipart/form-data`, field `image`); returns `{merchant_name, date, total_amount, items[]}` extracted by Claude vision, for prefilling a new expense. Requires `ANTHROPIC_API_KEY` to be configured.
