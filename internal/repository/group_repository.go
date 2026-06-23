@@ -10,6 +10,9 @@ type GroupRepository interface {
 	Create(group *domain.Group) error
 	GetByID(id uint) (*domain.Group, error)
 	GetByUserID(userID uint) ([]domain.Group, error)
+	GetByInviteToken(token string) (*domain.Group, error)
+	AddMember(groupID, userID uint) error
+	UpdateInviteToken(groupID uint, token string) error
 }
 
 type groupRepository struct {
@@ -43,4 +46,26 @@ func (r *groupRepository) GetByUserID(userID uint) ([]domain.Group, error) {
 		return nil, err
 	}
 	return groups, nil
+}
+
+func (r *groupRepository) GetByInviteToken(token string) (*domain.Group, error) {
+	var group domain.Group
+	err := r.db.Preload("Members").Where("invite_token = ?", token).First(&group).Error
+	if err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
+// AddMember inserts a membership row, ignoring the insert if the user is
+// already a member (idempotent).
+func (r *groupRepository) AddMember(groupID, userID uint) error {
+	return r.db.Exec(
+		"INSERT INTO group_users (group_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+		groupID, userID,
+	).Error
+}
+
+func (r *groupRepository) UpdateInviteToken(groupID uint, token string) error {
+	return r.db.Model(&domain.Group{}).Where("id = ?", groupID).Update("invite_token", token).Error
 }

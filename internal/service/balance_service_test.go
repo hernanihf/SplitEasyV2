@@ -20,7 +20,9 @@ func (f *fakeExpenseRepo) GetByGroupID(groupID uint) ([]domain.Expense, error) {
 }
 
 type fakeGroupRepo struct {
-	group *domain.Group
+	group         *domain.Group
+	addedMembers  [][2]uint
+	updatedTokens map[uint]string
 }
 
 func (f *fakeGroupRepo) Create(group *domain.Group) error { return nil }
@@ -33,6 +35,26 @@ func (f *fakeGroupRepo) GetByID(id uint) (*domain.Group, error) {
 }
 
 func (f *fakeGroupRepo) GetByUserID(userID uint) ([]domain.Group, error) { return nil, nil }
+
+func (f *fakeGroupRepo) GetByInviteToken(token string) (*domain.Group, error) {
+	if f.group == nil {
+		return nil, errors.New("not found")
+	}
+	return f.group, nil
+}
+
+func (f *fakeGroupRepo) AddMember(groupID, userID uint) error {
+	f.addedMembers = append(f.addedMembers, [2]uint{groupID, userID})
+	return nil
+}
+
+func (f *fakeGroupRepo) UpdateInviteToken(groupID uint, token string) error {
+	if f.updatedTokens == nil {
+		f.updatedTokens = map[uint]string{}
+	}
+	f.updatedTokens[groupID] = token
+	return nil
+}
 
 type fakeSettlementRepo struct {
 	settlements []domain.Settlement

@@ -171,6 +171,19 @@ definitions:
         example: John Doe
         type: string
     type: object
+  handler.InviteResponse:
+    properties:
+      token:
+        type: string
+      url:
+        type: string
+    type: object
+  handler.JoinGroupRequest:
+    properties:
+      token:
+        example: a1b2c3d4...
+        type: string
+    type: object
   handler.SettleDebtRequest:
     properties:
       amount:
@@ -448,6 +461,40 @@ paths:
       summary: Get balances/debts of a group
       tags:
       - groups
+  /groups/{id}/invite:
+    get:
+      description: Returns the share token and a join link for the group. Only group
+        members can request it.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.InviteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get a group's invite link
+      tags:
+      - groups
   /groups/{id}/settlements:
     post:
       consumes:
@@ -488,6 +535,39 @@ paths:
       security:
       - JWT: []
       summary: Settle a debt
+      tags:
+      - groups
+  /groups/join:
+    post:
+      consumes:
+      - application/json
+      description: Adds the authenticated user to the group identified by the invite
+        token. Idempotent.
+      parameters:
+      - description: Invite token
+        in: body
+        name: invite
+        required: true
+        schema:
+          $ref: '#/definitions/handler.JoinGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Group'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Join a group via invite token
       tags:
       - groups
   /receipts/scan:
