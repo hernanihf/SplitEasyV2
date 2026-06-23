@@ -39,7 +39,7 @@ func newGroupService(group *domain.Group) (*groupService, *fakeGroupRepo) {
 func TestCreateGroup_GeneratesInviteToken(t *testing.T) {
 	svc, _ := newGroupService(nil)
 
-	group, err := svc.CreateGroup("Asado", 1)
+	group, err := svc.CreateGroup("Asado", "🏔️", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

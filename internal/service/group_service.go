@@ -10,7 +10,7 @@ import (
 )
 
 type GroupService interface {
-	CreateGroup(name string, creatorID uint) (*domain.Group, error)
+	CreateGroup(name, emoji string, creatorID uint) (*domain.Group, error)
 	GetGroup(id uint) (*domain.Group, error)
 	ListGroupsForUser(userID uint) ([]domain.Group, error)
 	GetInviteToken(groupID, userID uint) (string, error)
@@ -44,7 +44,7 @@ func isMember(group *domain.Group, userID uint) bool {
 	return false
 }
 
-func (s *groupService) CreateGroup(name string, creatorID uint) (*domain.Group, error) {
+func (s *groupService) CreateGroup(name, emoji string, creatorID uint) (*domain.Group, error) {
 	if name == "" {
 		return nil, errors.New("group name is required")
 	}
@@ -59,8 +59,13 @@ func (s *groupService) CreateGroup(name string, creatorID uint) (*domain.Group, 
 		return nil, err
 	}
 
+	if emoji == "" {
+		emoji = "💸"
+	}
+
 	group := &domain.Group{
 		Name:        name,
+		Emoji:       emoji,
 		CreatedBy:   creatorID,
 		InviteToken: token,
 		Members:     []domain.User{*creator},

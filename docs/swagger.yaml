@@ -1,5 +1,29 @@
 basePath: /api/v1
 definitions:
+  domain.ActivityEvent:
+    properties:
+      actor_id:
+        type: integer
+      actor_name:
+        type: string
+      amount:
+        type: number
+      date:
+        type: string
+      group_emoji:
+        type: string
+      group_id:
+        type: integer
+      group_name:
+        type: string
+      title:
+        type: string
+      type:
+        description: '"expense" | "settlement"'
+        type: string
+      your_share:
+        type: number
+    type: object
   domain.Debt:
     properties:
       amount:
@@ -59,6 +83,8 @@ definitions:
         type: string
       created_by:
         type: integer
+      emoji:
+        type: string
       expenses:
         items:
           $ref: '#/definitions/domain.Expense'
@@ -74,6 +100,37 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  domain.GroupSummary:
+    properties:
+      emoji:
+        type: string
+      id:
+        type: integer
+      members_count:
+        type: integer
+      name:
+        type: string
+      your_balance:
+        type: number
+    type: object
+  domain.HomeSummary:
+    properties:
+      groups:
+        items:
+          $ref: '#/definitions/domain.GroupSummary'
+        type: array
+      overall:
+        $ref: '#/definitions/domain.OverallBalance'
+    type: object
+  domain.OverallBalance:
+    properties:
+      net:
+        type: number
+      owe:
+        type: number
+      owed:
+        type: number
     type: object
   domain.ReceiptItem:
     properties:
@@ -158,6 +215,9 @@ definitions:
     type: object
   handler.CreateGroupRequest:
     properties:
+      emoji:
+        example: "\U0001F3D4️"
+        type: string
       name:
         example: Trip to Paris
         type: string
@@ -219,6 +279,32 @@ info:
   title: SplitEasy API
   version: "1.0"
 paths:
+  /activity:
+    get:
+      description: Returns recent expenses and settlements across the user's groups,
+        newest first.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.ActivityEvent'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Activity feed
+      tags:
+      - summary
   /auth/google/callback:
     get:
       description: Handles the callback from Google OAuth2, exchanges authorization
@@ -570,6 +656,30 @@ paths:
       summary: Join a group via invite token
       tags:
       - groups
+  /home:
+    get:
+      description: Returns the authenticated user's overall balance and per-group
+        net balances.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.HomeSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Home summary
+      tags:
+      - summary
   /receipts/scan:
     post:
       consumes:
@@ -674,6 +784,29 @@ paths:
       security:
       - JWT: []
       summary: Get a user
+      tags:
+      - users
+  /users/me:
+    get:
+      description: Returns the profile of the currently authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get the authenticated user
       tags:
       - users
 securityDefinitions:

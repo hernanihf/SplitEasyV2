@@ -21,7 +21,8 @@ func NewGroupHandler(groupService service.GroupService) *GroupHandler {
 }
 
 type CreateGroupRequest struct {
-	Name string `json:"name" example:"Trip to Paris"`
+	Name  string `json:"name" example:"Trip to Paris"`
+	Emoji string `json:"emoji" example:"🏔️"`
 }
 
 // CreateGroup godoc
@@ -50,7 +51,7 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := h.groupService.CreateGroup(req.Name, userID)
+	group, err := h.groupService.CreateGroup(req.Name, req.Emoji, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

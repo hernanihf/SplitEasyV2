@@ -60,6 +60,7 @@ func main() {
 	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
 	authService := service.NewAuthService(userRepo)
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel)
+	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService)
@@ -68,6 +69,7 @@ func main() {
 	balanceHandler := handler.NewBalanceHandler(balanceService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
+	summaryHandler := handler.NewSummaryHandler(summaryService)
 
 	r := chi.NewRouter()
 
@@ -108,8 +110,13 @@ func main() {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(mymiddleware.JWTAuth)
 
+		// Home & activity
+		r.Get("/home", summaryHandler.GetHome)
+		r.Get("/activity", summaryHandler.GetActivity)
+
 		// Users
 		r.Post("/users", userHandler.CreateUser)
+		r.Get("/users/me", userHandler.GetMe)
 		r.Get("/users/{id}", userHandler.GetUser)
 
 		// Groups

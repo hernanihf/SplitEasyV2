@@ -24,6 +24,46 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/activity": {
+            "get": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Returns recent expenses and settlements across the user's groups, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "summary"
+                ],
+                "summary": "Activity feed",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.ActivityEvent"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/google/callback": {
             "get": {
                 "description": "Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token as a query param.",
@@ -561,6 +601,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/home": {
+            "get": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Returns the authenticated user's overall balance and per-group net balances.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "summary"
+                ],
+                "summary": "Home summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.HomeSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/receipts/scan": {
             "post": {
                 "security": [
@@ -673,6 +750,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me": {
+            "get": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Returns the profile of the currently authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the authenticated user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.User"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{id}": {
             "get": {
                 "security": [
@@ -727,6 +841,42 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "domain.ActivityEvent": {
+            "type": "object",
+            "properties": {
+                "actor_id": {
+                    "type": "integer"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "group_emoji": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"expense\" | \"settlement\"",
+                    "type": "string"
+                },
+                "your_share": {
+                    "type": "number"
+                }
+            }
+        },
         "domain.Debt": {
             "type": "object",
             "properties": {
@@ -821,6 +971,9 @@ const docTemplate = `{
                 "created_by": {
                     "type": "integer"
                 },
+                "emoji": {
+                    "type": "string"
+                },
                 "expenses": {
                     "type": "array",
                     "items": {
@@ -842,6 +995,54 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.GroupSummary": {
+            "type": "object",
+            "properties": {
+                "emoji": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "members_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "your_balance": {
+                    "type": "number"
+                }
+            }
+        },
+        "domain.HomeSummary": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.GroupSummary"
+                    }
+                },
+                "overall": {
+                    "$ref": "#/definitions/domain.OverallBalance"
+                }
+            }
+        },
+        "domain.OverallBalance": {
+            "type": "object",
+            "properties": {
+                "net": {
+                    "type": "number"
+                },
+                "owe": {
+                    "type": "number"
+                },
+                "owed": {
+                    "type": "number"
                 }
             }
         },
@@ -970,6 +1171,10 @@ const docTemplate = `{
         "handler.CreateGroupRequest": {
             "type": "object",
             "properties": {
+                "emoji": {
+                    "type": "string",
+                    "example": "🏔️"
+                },
                 "name": {
                     "type": "string",
                     "example": "Trip to Paris"
