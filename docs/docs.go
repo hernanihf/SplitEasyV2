@@ -1114,6 +1114,9 @@ const docTemplate = `{
         "domain.User": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },

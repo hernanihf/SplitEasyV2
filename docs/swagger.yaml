@@ -175,6 +175,8 @@ definitions:
     type: object
   domain.User:
     properties:
+      avatar_url:
+        type: string
       created_at:
         type: string
       email:

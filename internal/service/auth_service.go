@@ -32,8 +32,9 @@ func (s *authService) GetGoogleLoginURL(state string) string {
 }
 
 type googleUser struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	Email   string `json:"email"`
+	Name    string `json:"name"`
+	Picture string `json:"picture"`
 }
 
 func (s *authService) HandleGoogleCallback(code string) (string, error) {
@@ -65,12 +66,20 @@ func (s *authService) HandleGoogleCallback(code string) (string, error) {
 	if err != nil {
 		// Assume user doesn't exist, create it
 		user = &domain.User{
-			Name:  gUser.Name,
-			Email: gUser.Email,
+			Name:      gUser.Name,
+			Email:     gUser.Email,
+			AvatarURL: gUser.Picture,
 		}
 		err = s.userRepo.Create(user)
 		if err != nil {
 			return "", errors.New("failed to create user: " + err.Error())
+		}
+	} else if user.Name != gUser.Name || user.AvatarURL != gUser.Picture {
+		// Keep the profile fresh with what Google reports on each login.
+		user.Name = gUser.Name
+		user.AvatarURL = gUser.Picture
+		if err := s.userRepo.Update(user); err != nil {
+			return "", errors.New("failed to update user: " + err.Error())
 		}
 	}
 

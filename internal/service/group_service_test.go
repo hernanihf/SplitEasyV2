@@ -11,6 +11,7 @@ type fakeUserRepoForGroups struct {
 }
 
 func (f *fakeUserRepoForGroups) Create(user *domain.User) error { return nil }
+func (f *fakeUserRepoForGroups) Update(user *domain.User) error { return nil }
 func (f *fakeUserRepoForGroups) GetByEmail(email string) (*domain.User, error) {
 	return f.user, nil
 }
