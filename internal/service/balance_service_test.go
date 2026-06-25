@@ -48,11 +48,16 @@ func (f *fakeGroupRepo) AddMember(groupID, userID uint) error {
 	return nil
 }
 
-func (f *fakeGroupRepo) UpdateInviteToken(groupID uint, token string) error {
+func (f *fakeGroupRepo) SetInviteTokenIfEmpty(groupID uint, token string) error {
 	if f.updatedTokens == nil {
 		f.updatedTokens = map[uint]string{}
 	}
-	f.updatedTokens[groupID] = token
+	// Mimic the conditional write: only set when currently empty, and reflect it
+	// on the group so a subsequent GetByID returns the persisted token.
+	if f.group != nil && f.group.ID == groupID && f.group.InviteToken == "" {
+		f.group.InviteToken = token
+		f.updatedTokens[groupID] = token
+	}
 	return nil
 }
 

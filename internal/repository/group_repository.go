@@ -12,7 +12,7 @@ type GroupRepository interface {
 	GetByUserID(userID uint) ([]domain.Group, error)
 	GetByInviteToken(token string) (*domain.Group, error)
 	AddMember(groupID, userID uint) error
-	UpdateInviteToken(groupID uint, token string) error
+	SetInviteTokenIfEmpty(groupID uint, token string) error
 }
 
 type groupRepository struct {
@@ -66,6 +66,11 @@ func (r *groupRepository) AddMember(groupID, userID uint) error {
 	).Error
 }
 
-func (r *groupRepository) UpdateInviteToken(groupID uint, token string) error {
-	return r.db.Model(&domain.Group{}).Where("id = ?", groupID).Update("invite_token", token).Error
+// SetInviteTokenIfEmpty atomically sets the token only when the group has none,
+// so concurrent "generate a token" requests can't clobber each other — the
+// first writer wins and the others' conditional update is a no-op.
+func (r *groupRepository) SetInviteTokenIfEmpty(groupID uint, token string) error {
+	return r.db.Model(&domain.Group{}).
+		Where("id = ? AND (invite_token IS NULL OR invite_token = '')", groupID).
+		Update("invite_token", token).Error
 }

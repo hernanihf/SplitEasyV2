@@ -87,6 +87,23 @@ func TestGetInviteToken_LazilyGeneratesWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestGetInviteToken_IsIdempotentOnceGenerated(t *testing.T) {
+	group := &domain.Group{ID: 5, InviteToken: "", Members: []domain.User{{ID: 7}}}
+	svc, _ := newGroupService(group)
+
+	first, err := svc.GetInviteToken(5, 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	second, err := svc.GetInviteToken(5, 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if first != second {
+		t.Errorf("expected the same persisted token on repeat, got %q then %q", first, second)
+	}
+}
+
 func TestJoinGroup_AddsMember(t *testing.T) {
 	group := &domain.Group{ID: 3, InviteToken: "valid-token"}
 	svc, repo := newGroupService(group)

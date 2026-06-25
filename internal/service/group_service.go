@@ -125,10 +125,17 @@ func (s *groupService) GetInviteToken(groupID, userID uint) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := s.groupRepo.UpdateInviteToken(group.ID, token); err != nil {
+		// Conditional write: only the first concurrent caller persists a token.
+		// Re-read so every caller returns the token that actually won, instead
+		// of its own locally-generated (possibly clobbered) candidate.
+		if err := s.groupRepo.SetInviteTokenIfEmpty(group.ID, token); err != nil {
 			return "", err
 		}
-		group.InviteToken = token
+		updated, err := s.groupRepo.GetByID(group.ID)
+		if err != nil {
+			return "", err
+		}
+		return updated.InviteToken, nil
 	}
 
 	return group.InviteToken, nil
