@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Versioned pre-push hook. Enable once with: make hooks
+# (sets git config core.hooksPath .githooks)
+set -euo pipefail
+
+echo "▶ pre-push checks"
+
+# 1. Formatting — gofmt is part of the Go toolchain, always available.
+unformatted="$(gofmt -l . 2>/dev/null || true)"
+if [ -n "$unformatted" ]; then
+  echo "✗ gofmt: the following files need formatting (run 'make fmt'):"
+  echo "$unformatted"
+  exit 1
+fi
+echo "✓ gofmt"
+
+# 2. go vet
+if ! go vet ./...; then
+  echo "✗ go vet failed"
+  exit 1
+fi
+echo "✓ go vet"
+
+# 3. golangci-lint — optional; only runs if installed.
+if command -v golangci-lint >/dev/null 2>&1; then
+  if ! golangci-lint run ./...; then
+    echo "✗ golangci-lint failed"
+    exit 1
+  fi
+  echo "✓ golangci-lint"
+else
+  echo "• golangci-lint not installed — skipping (run 'make install-tools')"
+fi
+
+# 4. Build & tests
+if ! go build ./...; then
+  echo "✗ build failed"
+  exit 1
+fi
+echo "✓ build"
+
+if ! go test ./...; then
+  echo "✗ tests failed"
+  exit 1
+fi
+echo "✓ tests"
+
+echo "✔ all checks passed"

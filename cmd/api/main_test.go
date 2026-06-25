@@ -58,4 +58,3 @@ func TestSwaggerRoute(t *testing.T) {
 		t.Errorf("Expected API title 'SplitEasy API', got '%v'", info["title"])
 	}
 }
-

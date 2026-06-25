@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	_ "spliteasy/docs" // Blank import is necessary for swagger registration
 	httpSwagger "github.com/swaggo/http-swagger"
+	_ "spliteasy/docs" // Blank import is necessary for swagger registration
 )
 
 // SwaggerHandler returns an http.Handler that wraps the third-party Swagger UI provider.

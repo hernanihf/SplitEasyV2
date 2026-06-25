@@ -14,7 +14,7 @@ type Expense struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 
 	// Relationships
-	PaidBy  User           `gorm:"foreignKey:PaidByID" json:"paid_by"`
-	Group   Group          `gorm:"foreignKey:GroupID" json:"-"`
-	Splits  []ExpenseSplit `json:"splits"`
+	PaidBy User           `gorm:"foreignKey:PaidByID" json:"paid_by"`
+	Group  Group          `gorm:"foreignKey:GroupID" json:"-"`
+	Splits []ExpenseSplit `json:"splits"`
 }

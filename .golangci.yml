@@ -1,0 +1,9 @@
+# golangci-lint v2 config. Defaults already enable errcheck, govet,
+# ineffassign, staticcheck and unused; we add a couple of useful extras.
+version: "2"
+run:
+  timeout: 3m
+linters:
+  enable:
+    - misspell
+    - unconvert
