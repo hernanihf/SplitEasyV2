@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"spliteasy/internal/config"
@@ -144,6 +145,8 @@ func frontendJoinURL(token string) string {
 // @Failure      400  {string}  string  "Bad Request"
 // @Failure      401  {string}  string  "Unauthorized"
 // @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /groups/{id}/invite [get]
 func (h *GroupHandler) GetInvite(w http.ResponseWriter, r *http.Request) {
@@ -162,7 +165,14 @@ func (h *GroupHandler) GetInvite(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.groupService.GetInviteToken(uint(id), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		switch {
+		case errors.Is(err, service.ErrGroupNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, service.ErrNotGroupMember):
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, "could not generate invite link", http.StatusInternalServerError)
+		}
 		return
 	}
 

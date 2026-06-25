@@ -9,6 +9,12 @@ import (
 	"spliteasy/internal/repository"
 )
 
+// Sentinel errors that handlers map to HTTP status codes via errors.Is.
+var (
+	ErrGroupNotFound  = errors.New("group not found")
+	ErrNotGroupMember = errors.New("only group members can share an invite")
+)
+
 type GroupService interface {
 	CreateGroup(name, emoji string, creatorID uint) (*domain.Group, error)
 	GetGroup(id uint) (*domain.Group, error)
@@ -93,10 +99,10 @@ func (s *groupService) ListGroupsForUser(userID uint) ([]domain.Group, error) {
 func (s *groupService) GetInviteToken(groupID, userID uint) (string, error) {
 	group, err := s.groupRepo.GetByID(groupID)
 	if err != nil {
-		return "", errors.New("group not found")
+		return "", ErrGroupNotFound
 	}
 	if !isMember(group, userID) {
-		return "", errors.New("only group members can share an invite")
+		return "", ErrNotGroupMember
 	}
 
 	if group.InviteToken == "" {
