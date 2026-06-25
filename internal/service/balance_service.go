@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"math"
 	"sort"
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
@@ -11,7 +10,7 @@ import (
 
 type BalanceService interface {
 	CalculateGroupDebts(ctx context.Context, groupID uint) ([]domain.Debt, error)
-	SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error)
+	SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount int64) (*domain.Settlement, error)
 	ListSettlements(ctx context.Context, groupID uint) ([]domain.Settlement, error)
 }
 
@@ -45,8 +44,8 @@ func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) 
 		return nil, err
 	}
 
-	// 1. Calculate net balances for each user
-	balancesMap := make(map[uint]float64)
+	// 1. Calculate net balances for each user (in cents)
+	balancesMap := make(map[uint]int64)
 
 	for _, exp := range expenses {
 		// Payer gets positive balance for the amount they paid
@@ -70,10 +69,9 @@ func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) 
 	var creditors []domain.UserBalance
 
 	for userID, amount := range balancesMap {
-		amount = math.Round(amount*100) / 100 // Avoid floating point precision issues
-		if amount < -0.01 {
+		if amount < 0 {
 			debtors = append(debtors, domain.UserBalance{UserID: userID, Amount: amount})
-		} else if amount > 0.01 {
+		} else if amount > 0 {
 			creditors = append(creditors, domain.UserBalance{UserID: userID, Amount: amount})
 		}
 	}
@@ -91,12 +89,14 @@ func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) 
 		debtor := &debtors[i]
 		creditor := &creditors[j]
 
-		// Debt amount is negative, so we take absolute value
-		debtAmount := math.Abs(debtor.Amount)
+		// Debt amount is negative, so we take its absolute value.
+		debtAmount := -debtor.Amount
 		creditAmount := creditor.Amount
 
-		settleAmount := math.Min(debtAmount, creditAmount)
-		settleAmount = math.Round(settleAmount*100) / 100
+		settleAmount := debtAmount
+		if creditAmount < settleAmount {
+			settleAmount = creditAmount
+		}
 
 		debts = append(debts, domain.Debt{
 			FromUserID: debtor.UserID,
@@ -109,10 +109,10 @@ func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) 
 		creditor.Amount -= settleAmount
 
 		// Move indices if balances are settled
-		if math.Abs(debtor.Amount) < 0.01 {
+		if debtor.Amount == 0 {
 			i++
 		}
-		if creditor.Amount < 0.01 {
+		if creditor.Amount == 0 {
 			j++
 		}
 	}
@@ -125,7 +125,7 @@ func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) 
 	return debts, nil
 }
 
-func (s *balanceService) SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error) {
+func (s *balanceService) SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount int64) (*domain.Settlement, error) {
 	if amount <= 0 {
 		return nil, errors.New("settlement amount must be positive")
 	}

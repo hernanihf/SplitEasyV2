@@ -12,7 +12,7 @@ type Settlement struct {
 	GroupID    uint      `gorm:"not null" json:"group_id"`
 	FromUserID uint      `gorm:"not null" json:"from_user_id"`
 	ToUserID   uint      `gorm:"not null" json:"to_user_id"`
-	Amount     float64   `gorm:"type:numeric(10,2);not null" json:"amount"`
+	Amount     int64     `gorm:"not null" json:"amount"` // cents
 	CreatedAt  time.Time `json:"created_at"`
 
 	// Relationships

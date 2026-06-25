@@ -976,7 +976,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "amount": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "date": {
                     "type": "string"
@@ -998,7 +999,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "your_share": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 }
             }
         },
@@ -1006,7 +1008,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "from_user_id": {
                     "type": "integer"
@@ -1020,7 +1023,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "created_at": {
                     "type": "string"
@@ -1060,7 +1064,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "created_at": {
                     "type": "string"
@@ -1139,7 +1144,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "your_balance": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 }
             }
         },
@@ -1161,13 +1167,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "net": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "owe": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "owed": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 }
             }
         },
@@ -1206,7 +1215,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "cents",
+                    "type": "integer"
                 },
                 "created_at": {
                     "type": "string"
@@ -1263,8 +1273,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number",
-                    "example": 120.5
+                    "type": "integer",
+                    "example": 12050
                 },
                 "description": {
                     "type": "string",
@@ -1346,8 +1356,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number",
-                    "example": 50
+                    "type": "integer",
+                    "example": 5000
                 },
                 "from_user_id": {
                     "type": "integer",

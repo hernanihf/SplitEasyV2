@@ -91,9 +91,9 @@ func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request)
 }
 
 type SettleDebtRequest struct {
-	FromUserID uint    `json:"from_user_id" example:"2"`
-	ToUserID   uint    `json:"to_user_id" example:"1"`
-	Amount     float64 `json:"amount" example:"50.00"`
+	FromUserID uint  `json:"from_user_id" example:"2"`
+	ToUserID   uint  `json:"to_user_id" example:"1"`
+	Amount     int64 `json:"amount" example:"5000"`
 }
 
 // SettleDebt godoc

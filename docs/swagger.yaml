@@ -7,7 +7,8 @@ definitions:
       actor_name:
         type: string
       amount:
-        type: number
+        description: cents
+        type: integer
       date:
         type: string
       group_emoji:
@@ -22,12 +23,14 @@ definitions:
         description: '"expense" | "settlement"'
         type: string
       your_share:
-        type: number
+        description: cents
+        type: integer
     type: object
   domain.Debt:
     properties:
       amount:
-        type: number
+        description: cents
+        type: integer
       from_user_id:
         type: integer
       to_user_id:
@@ -36,7 +39,8 @@ definitions:
   domain.Expense:
     properties:
       amount:
-        type: number
+        description: cents
+        type: integer
       created_at:
         type: string
       description:
@@ -61,7 +65,8 @@ definitions:
   domain.ExpenseSplit:
     properties:
       amount:
-        type: number
+        description: cents
+        type: integer
       created_at:
         type: string
       expense_id:
@@ -112,7 +117,8 @@ definitions:
       name:
         type: string
       your_balance:
-        type: number
+        description: cents
+        type: integer
     type: object
   domain.HomeSummary:
     properties:
@@ -126,11 +132,14 @@ definitions:
   domain.OverallBalance:
     properties:
       net:
-        type: number
+        description: cents
+        type: integer
       owe:
-        type: number
+        description: cents
+        type: integer
       owed:
-        type: number
+        description: cents
+        type: integer
     type: object
   domain.ReceiptItem:
     properties:
@@ -155,7 +164,8 @@ definitions:
   domain.Settlement:
     properties:
       amount:
-        type: number
+        description: cents
+        type: integer
       created_at:
         type: string
       from_user:
@@ -191,8 +201,8 @@ definitions:
   handler.AddExpenseRequest:
     properties:
       amount:
-        example: 120.5
-        type: number
+        example: 12050
+        type: integer
       description:
         example: Dinner
         type: string
@@ -249,8 +259,8 @@ definitions:
   handler.SettleDebtRequest:
     properties:
       amount:
-        example: 50
-        type: number
+        example: 5000
+        type: integer
       from_user_id:
         example: 2
         type: integer

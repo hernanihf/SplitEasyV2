@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"math"
 	"sort"
 
 	"spliteasy/internal/domain"
@@ -30,8 +29,8 @@ func NewSummaryService(
 
 // userNet returns the user's net balance for a group: positive means the group
 // owes them money, negative means they owe the group.
-func userNet(userID uint, expenses []domain.Expense, settlements []domain.Settlement) float64 {
-	net := 0.0
+func userNet(userID uint, expenses []domain.Expense, settlements []domain.Settlement) int64 {
+	var net int64
 	for _, e := range expenses {
 		if e.PaidByID == userID {
 			net += e.Amount
@@ -50,7 +49,7 @@ func userNet(userID uint, expenses []domain.Expense, settlements []domain.Settle
 			net -= st.Amount
 		}
 	}
-	return math.Round(net*100) / 100
+	return net
 }
 
 func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*domain.HomeSummary, error) {
@@ -89,10 +88,6 @@ func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*doma
 		}
 	}
 
-	summary.Overall.Net = math.Round(summary.Overall.Net*100) / 100
-	summary.Overall.Owed = math.Round(summary.Overall.Owed*100) / 100
-	summary.Overall.Owe = math.Round(summary.Overall.Owe*100) / 100
-
 	return summary, nil
 }
 
@@ -115,7 +110,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 			return nil, err
 		}
 		for _, e := range expenses {
-			var yourShare float64
+			var yourShare int64
 			for _, sp := range e.Splits {
 				if sp.UserID == userID {
 					yourShare = sp.Amount

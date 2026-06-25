@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sort"
+
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
 )
@@ -17,8 +19,8 @@ const (
 	// SplitPercentage divides the amount according to a percentage (0-100)
 	// per member; percentages must add up to 100.
 	SplitPercentage SplitMethod = "percentage"
-	// SplitFixed assigns an exact amount per member; amounts must add up to
-	// the expense total.
+	// SplitFixed assigns an exact amount (in cents) per member; amounts must
+	// add up to the expense total.
 	SplitFixed SplitMethod = "fixed"
 	// SplitShares divides the amount proportionally to a weight/unit count
 	// per member (e.g. 2 units of bread vs 4 units of bread).
@@ -26,14 +28,16 @@ const (
 )
 
 // SplitInput represents one member's share for non-equal split methods, or
-// simply which member to include for an equal split among a subset.
+// simply which member to include for an equal split among a subset. Value is
+// interpreted per method: cents for "fixed", a percentage for "percentage", a
+// weight for "shares", and unused for "equal".
 type SplitInput struct {
 	UserID uint
 	Value  float64
 }
 
 type ExpenseService interface {
-	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error)
+	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error)
 	GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error)
 }
 
@@ -46,7 +50,7 @@ func NewExpenseService(expenseRepo repository.ExpenseRepository, groupRepo repos
 	return &expenseService{expenseRepo, groupRepo}
 }
 
-func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error) {
+func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error) {
 	if amount <= 0 {
 		return nil, errors.New("amount must be greater than zero")
 	}
@@ -99,9 +103,9 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 	return expense, nil
 }
 
-// calculateSplitAmounts resolves how much each member owes for the given
-// method. Map order is irrelevant; callers only care about user->amount.
-func calculateSplitAmounts(method SplitMethod, amount float64, splitInputs []SplitInput, groupMembers []domain.User) (map[uint]float64, error) {
+// calculateSplitAmounts resolves how many cents each member owes for the given
+// method. Map order is irrelevant; callers only care about user->cents.
+func calculateSplitAmounts(method SplitMethod, amount int64, splitInputs []SplitInput, groupMembers []domain.User) (map[uint]int64, error) {
 	switch method {
 	case "", SplitEqual:
 		return splitEqual(amount, splitInputs, groupMembers)
@@ -116,7 +120,52 @@ func calculateSplitAmounts(method SplitMethod, amount float64, splitInputs []Spl
 	}
 }
 
-func splitEqual(amount float64, splitInputs []SplitInput, groupMembers []domain.User) (map[uint]float64, error) {
+// distributeProportionally splits total cents among userIDs proportional to the
+// given weights, using the largest-remainder method so the parts add up exactly
+// to total (no cent is lost or invented). Ties are broken by user id so the
+// result is deterministic.
+func distributeProportionally(total int64, userIDs []uint, weights []float64) map[uint]int64 {
+	result := make(map[uint]int64, len(userIDs))
+
+	var weightSum float64
+	for _, w := range weights {
+		weightSum += w
+	}
+	if weightSum <= 0 {
+		return result
+	}
+
+	type remainder struct {
+		userID uint
+		frac   float64
+	}
+	rems := make([]remainder, len(userIDs))
+
+	var assigned int64
+	for i, uid := range userIDs {
+		exact := float64(total) * weights[i] / weightSum
+		floor := int64(math.Floor(exact))
+		result[uid] = floor
+		assigned += floor
+		rems[i] = remainder{userID: uid, frac: exact - float64(floor)}
+	}
+
+	// Hand out the leftover cents to the largest fractional remainders.
+	leftover := total - assigned
+	sort.Slice(rems, func(i, j int) bool {
+		if rems[i].frac != rems[j].frac {
+			return rems[i].frac > rems[j].frac
+		}
+		return rems[i].userID < rems[j].userID
+	})
+	for i := int64(0); i < leftover && int(i) < len(rems); i++ {
+		result[rems[i].userID]++
+	}
+
+	return result
+}
+
+func splitEqual(amount int64, splitInputs []SplitInput, groupMembers []domain.User) (map[uint]int64, error) {
 	var userIDs []uint
 	if len(splitInputs) > 0 {
 		for _, input := range splitInputs {
@@ -132,72 +181,68 @@ func splitEqual(amount float64, splitInputs []SplitInput, groupMembers []domain.
 		return nil, errors.New("no members to split the expense among")
 	}
 
-	splitAmount := roundCents(amount / float64(len(userIDs)))
-	result := make(map[uint]float64, len(userIDs))
-	for _, userID := range userIDs {
-		result[userID] = splitAmount
+	weights := make([]float64, len(userIDs))
+	for i := range weights {
+		weights[i] = 1
 	}
-	return result, nil
+	return distributeProportionally(amount, userIDs, weights), nil
 }
 
-func splitByPercentage(amount float64, splitInputs []SplitInput) (map[uint]float64, error) {
+func splitByPercentage(amount int64, splitInputs []SplitInput) (map[uint]int64, error) {
 	if len(splitInputs) == 0 {
 		return nil, errors.New("percentage split requires at least one member")
 	}
 
 	var totalPercentage float64
-	result := make(map[uint]float64, len(splitInputs))
-	for _, input := range splitInputs {
+	userIDs := make([]uint, len(splitInputs))
+	weights := make([]float64, len(splitInputs))
+	for i, input := range splitInputs {
 		totalPercentage += input.Value
-		result[input.UserID] = roundCents(amount * input.Value / 100)
+		userIDs[i] = input.UserID
+		weights[i] = input.Value
 	}
 
 	if math.Abs(totalPercentage-100) > 0.01 {
 		return nil, errors.New("percentages must add up to 100")
 	}
-	return result, nil
+	return distributeProportionally(amount, userIDs, weights), nil
 }
 
-func splitByFixedAmount(amount float64, splitInputs []SplitInput) (map[uint]float64, error) {
+func splitByFixedAmount(amount int64, splitInputs []SplitInput) (map[uint]int64, error) {
 	if len(splitInputs) == 0 {
 		return nil, errors.New("fixed split requires at least one member")
 	}
 
-	var total float64
-	result := make(map[uint]float64, len(splitInputs))
+	var total int64
+	result := make(map[uint]int64, len(splitInputs))
 	for _, input := range splitInputs {
-		total += input.Value
-		result[input.UserID] = roundCents(input.Value)
+		cents := int64(math.Round(input.Value))
+		total += cents
+		result[input.UserID] = cents
 	}
 
-	if math.Abs(total-amount) > 0.01 {
+	if total != amount {
 		return nil, errors.New("fixed amounts must add up to the expense total")
 	}
 	return result, nil
 }
 
-func splitByShares(amount float64, splitInputs []SplitInput) (map[uint]float64, error) {
+func splitByShares(amount int64, splitInputs []SplitInput) (map[uint]int64, error) {
 	if len(splitInputs) == 0 {
 		return nil, errors.New("shares split requires at least one member")
 	}
 
-	var totalShares float64
-	for _, input := range splitInputs {
+	userIDs := make([]uint, len(splitInputs))
+	weights := make([]float64, len(splitInputs))
+	for i, input := range splitInputs {
 		if input.Value <= 0 {
 			return nil, errors.New("shares must be greater than zero")
 		}
-		totalShares += input.Value
+		userIDs[i] = input.UserID
+		weights[i] = input.Value
 	}
 
-	result := make(map[uint]float64, len(splitInputs))
-	for _, input := range splitInputs {
-		result[input.UserID] = roundCents(amount * input.Value / totalShares)
-	}
-	return result, nil
-}
-
-func roundCents(value float64) float64 {
-	return math.Round(value*100) / 100
+	return distributeProportionally(amount, userIDs, weights), nil
 }
 
 func (s *expenseService) GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error) {

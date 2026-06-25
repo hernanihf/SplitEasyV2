@@ -9,7 +9,7 @@ type Expense struct {
 	GroupID     uint      `gorm:"not null" json:"group_id"`
 	PaidByID    uint      `gorm:"not null" json:"paid_by_id"`
 	Description string    `gorm:"not null" json:"description"`
-	Amount      float64   `gorm:"type:numeric(10,2);not null" json:"amount"`
+	Amount      int64     `gorm:"not null" json:"amount"` // cents
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 

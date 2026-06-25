@@ -29,8 +29,8 @@ func newTestExpenseService(members []domain.User) (ExpenseService, *fakeExpenseR
 	return svc, expenseRepo
 }
 
-func splitsByUser(splits []domain.ExpenseSplit) map[uint]float64 {
-	result := make(map[uint]float64, len(splits))
+func splitsByUser(splits []domain.ExpenseSplit) map[uint]int64 {
+	result := make(map[uint]int64, len(splits))
 	for _, s := range splits {
 		result[s.UserID] = s.Amount
 	}
@@ -64,6 +64,30 @@ func TestAddExpense_EqualAmongSubset(t *testing.T) {
 	splits := splitsByUser(repo.createdSplits)
 	if len(splits) != 2 || splits[1] != 50 || splits[2] != 50 {
 		t.Errorf("expected 50/50 split among 2 members, got %+v", splits)
+	}
+}
+
+func TestAddExpense_EqualDistributesRemainderExactly(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
+	svc, repo := newTestExpenseService(members)
+
+	// 1000 cents / 3 doesn't divide evenly; the parts must still sum to 1000.
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 1000, SplitEqual, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	splits := splitsByUser(repo.createdSplits)
+	var total int64
+	for _, c := range splits {
+		total += c
+	}
+	if total != 1000 {
+		t.Errorf("expected splits to sum to 1000 cents, got %d", total)
+	}
+	// The extra cent goes to the lowest user id (deterministic tie-break).
+	if splits[1] != 334 || splits[2] != 333 || splits[3] != 333 {
+		t.Errorf("expected 334/333/333, got %+v", splits)
 	}
 }
 

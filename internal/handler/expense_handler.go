@@ -27,7 +27,7 @@ type AddExpenseRequest struct {
 	GroupID     uint                `json:"group_id" example:"1"`
 	PaidByID    uint                `json:"paid_by_id" example:"1"`
 	Description string              `json:"description" example:"Dinner"`
-	Amount      float64             `json:"amount" example:"120.50"`
+	Amount      int64               `json:"amount" example:"12050"`
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
 }
