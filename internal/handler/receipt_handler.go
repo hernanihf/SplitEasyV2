@@ -26,6 +26,7 @@ func NewReceiptHandler(receiptService service.ReceiptService) *ReceiptHandler {
 // @Success      200    {object}  domain.ReceiptScan
 // @Failure      400    {string}  string  "Bad Request"
 // @Failure      401    {string}  string  "Unauthorized"
+// @Failure      429    {string}  string  "Too Many Requests"
 // @Failure      500    {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /receipts/scan [post]

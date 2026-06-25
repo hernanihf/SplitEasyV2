@@ -71,6 +71,9 @@ func main() {
 	receiptHandler := handler.NewReceiptHandler(receiptService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
 
+	// Per-user rate limiter for the paid receipt-scan endpoint.
+	scanLimiter := mymiddleware.NewScanRateLimiterFromEnv()
+
 	r := chi.NewRouter()
 
 	// A good base middleware stack
@@ -133,8 +136,8 @@ func main() {
 		r.Post("/expenses", expenseHandler.AddExpense)
 		r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
 
-		// Receipts
-		r.Post("/receipts/scan", receiptHandler.ScanReceipt)
+		// Receipts — rate limited per user (the scan is slow and billed by Anthropic)
+		r.With(scanLimiter.Limit).Post("/receipts/scan", receiptHandler.ScanReceipt)
 	})
 
 	log.Println("Starting server on :8080...")
