@@ -10,6 +10,7 @@ import (
 type BalanceService interface {
 	CalculateGroupDebts(groupID uint) ([]domain.Debt, error)
 	SettleDebt(groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error)
+	ListSettlements(groupID uint) ([]domain.Settlement, error)
 }
 
 type balanceService struct {
@@ -141,4 +142,17 @@ func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount f
 	}
 
 	return settlement, nil
+}
+
+// ListSettlements returns every recorded payment in the group, for the unified
+// history view. Balances are still computed separately from these.
+func (s *balanceService) ListSettlements(groupID uint) ([]domain.Settlement, error) {
+	settlements, err := s.settlementRepo.GetByGroupID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if settlements == nil {
+		settlements = []domain.Settlement{}
+	}
+	return settlements, nil
 }

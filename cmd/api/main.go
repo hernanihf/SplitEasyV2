@@ -126,6 +126,7 @@ func main() {
 		r.Get("/groups/{id}", groupHandler.GetGroup)
 		r.Get("/groups/{id}/invite", groupHandler.GetInvite)
 		r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
+		r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
 		r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
 
 		// Expenses

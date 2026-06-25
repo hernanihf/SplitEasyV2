@@ -592,6 +592,41 @@ paths:
       tags:
       - groups
   /groups/{id}/settlements:
+    get:
+      description: Returns every recorded payment in the group for the unified history
+        view.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Settlement'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: List a group's settlements
+      tags:
+      - groups
     post:
       consumes:
       - application/json

@@ -47,6 +47,36 @@ func (h *BalanceHandler) GetGroupBalances(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(debts)
 }
 
+// ListSettlements godoc
+// @Summary      List a group's settlements
+// @Description  Returns every recorded payment in the group for the unified history view.
+// @Tags         groups
+// @Produce      json
+// @Param        id   path      int  true  "Group ID"
+// @Success      200  {array}   domain.Settlement
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /groups/{id}/settlements [get]
+func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request) {
+	groupIDStr := chi.URLParam(r, "id")
+	groupID, err := strconv.ParseUint(groupIDStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid group_id", http.StatusBadRequest)
+		return
+	}
+
+	settlements, err := h.balanceService.ListSettlements(uint(groupID))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settlements)
+}
+
 type SettleDebtRequest struct {
 	FromUserID uint    `json:"from_user_id" example:"2"`
 	ToUserID   uint    `json:"to_user_id" example:"1"`
