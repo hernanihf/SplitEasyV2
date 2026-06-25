@@ -31,6 +31,8 @@ func NewReceiptHandler(receiptService service.ReceiptService) *ReceiptHandler {
 // @Security     JWT
 // @Router       /receipts/scan [post]
 func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
+	// Cap the whole request body so a malicious upload can't exhaust memory.
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxReceiptImageBytes+1<<20)
 	if err := r.ParseMultipartForm(service.MaxReceiptImageBytes + 1<<20); err != nil {
 		http.Error(w, "invalid multipart form: "+err.Error(), http.StatusBadRequest)
 		return

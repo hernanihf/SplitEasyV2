@@ -7,6 +7,8 @@ linters:
   enable:
     - misspell
     - unconvert
+    - gosec
+    - gocritic
   settings:
     errcheck:
       # These errors are not actionable: writing JSON to an http.ResponseWriter
@@ -16,3 +18,8 @@ linters:
         - (*encoding/json.Encoder).Encode
         - (io.ReadCloser).Close
         - (mime/multipart.File).Close
+    gosec:
+      # G104 (unhandled errors) overlaps with errcheck, which already owns that
+      # concern with the targeted exclusions above.
+      excludes:
+        - G104

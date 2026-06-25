@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"spliteasy/internal/config"
 	"spliteasy/internal/handler"
@@ -140,9 +141,18 @@ func main() {
 		r.With(scanLimiter.Limit).Post("/receipts/scan", receiptHandler.ScanReceipt)
 	})
 
+	srv := &http.Server{
+		Addr:              ":8080",
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		// Generous: the receipt scan calls Anthropic synchronously.
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
 	log.Println("Starting server on :8080...")
-	err := http.ListenAndServe(":8080", r)
-	if err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
