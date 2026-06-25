@@ -21,6 +21,28 @@ func NewGroupHandler(groupService service.GroupService) *GroupHandler {
 	return &GroupHandler{groupService}
 }
 
+// authorizeGroupAccess ensures the authenticated user is a member of the group.
+// It writes the appropriate error response and returns false when access should
+// be denied, so handlers guarding group-scoped resources can `if !... { return }`.
+func authorizeGroupAccess(w http.ResponseWriter, r *http.Request, gs service.GroupService, groupID uint) bool {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return false
+	}
+	switch err := gs.VerifyMembership(groupID, userID); {
+	case err == nil:
+		return true
+	case errors.Is(err, service.ErrGroupNotFound):
+		http.Error(w, "group not found", http.StatusNotFound)
+	case errors.Is(err, service.ErrNotGroupMember):
+		http.Error(w, "you are not a member of this group", http.StatusForbidden)
+	default:
+		http.Error(w, "authorization failed", http.StatusInternalServerError)
+	}
+	return false
+}
+
 type CreateGroupRequest struct {
 	Name  string `json:"name" example:"Trip to Paris"`
 	Emoji string `json:"emoji" example:"🏔️"`
@@ -72,6 +94,7 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  domain.Group
 // @Failure      400  {string}  string  "Bad Request"
 // @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
 // @Failure      404  {string}  string  "Not Found"
 // @Security     JWT
 // @Router       /groups/{id} [get]
@@ -80,6 +103,10 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, uint(id)) {
 		return
 	}
 

@@ -11,10 +11,11 @@ import (
 
 type BalanceHandler struct {
 	balanceService service.BalanceService
+	groupService   service.GroupService
 }
 
-func NewBalanceHandler(balanceService service.BalanceService) *BalanceHandler {
-	return &BalanceHandler{balanceService}
+func NewBalanceHandler(balanceService service.BalanceService, groupService service.GroupService) *BalanceHandler {
+	return &BalanceHandler{balanceService, groupService}
 }
 
 // GetGroupBalances godoc
@@ -26,6 +27,8 @@ func NewBalanceHandler(balanceService service.BalanceService) *BalanceHandler {
 // @Success      200  {array}   domain.Debt
 // @Failure      400  {string}  string  "Bad Request"
 // @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
 // @Failure      500  {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /groups/{id}/balances [get]
@@ -34,6 +37,10 @@ func (h *BalanceHandler) GetGroupBalances(w http.ResponseWriter, r *http.Request
 	groupID, err := strconv.ParseUint(groupIDStr, 10, 32)
 	if err != nil {
 		http.Error(w, "invalid group_id", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
 		return
 	}
 
@@ -56,6 +63,8 @@ func (h *BalanceHandler) GetGroupBalances(w http.ResponseWriter, r *http.Request
 // @Success      200  {array}   domain.Settlement
 // @Failure      400  {string}  string  "Bad Request"
 // @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
 // @Failure      500  {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /groups/{id}/settlements [get]
@@ -64,6 +73,10 @@ func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request)
 	groupID, err := strconv.ParseUint(groupIDStr, 10, 32)
 	if err != nil {
 		http.Error(w, "invalid group_id", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
 		return
 	}
 
@@ -102,6 +115,10 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 	groupID, err := strconv.ParseUint(groupIDStr, 10, 32)
 	if err != nil {
 		http.Error(w, "invalid group_id", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
 		return
 	}
 

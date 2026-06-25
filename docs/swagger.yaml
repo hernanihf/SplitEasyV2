@@ -376,6 +376,14 @@ paths:
           description: Unauthorized
           schema:
             type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
         "500":
           description: Internal Server Error
           schema:
@@ -472,6 +480,14 @@ paths:
           description: Unauthorized
           schema:
             type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
         "500":
           description: Internal Server Error
           schema:
@@ -503,6 +519,10 @@ paths:
             type: string
         "401":
           description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
           schema:
             type: string
         "404":
@@ -538,6 +558,14 @@ paths:
             type: string
         "401":
           description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
           schema:
             type: string
         "500":
@@ -616,6 +644,14 @@ paths:
             type: string
         "401":
           description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
           schema:
             type: string
         "500":

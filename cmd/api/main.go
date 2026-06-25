@@ -65,8 +65,8 @@ func main() {
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService)
 	groupHandler := handler.NewGroupHandler(groupService)
-	expenseHandler := handler.NewExpenseHandler(expenseService)
-	balanceHandler := handler.NewBalanceHandler(balanceService)
+	expenseHandler := handler.NewExpenseHandler(expenseService, groupService)
+	balanceHandler := handler.NewBalanceHandler(balanceService, groupService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)

@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"math"
+	"sort"
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
 )
@@ -76,6 +77,11 @@ func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error
 		}
 	}
 
+	// Map iteration order is randomised in Go, so sort both sides by UserID to
+	// keep the greedy pairing (and thus "who owes whom") stable across requests.
+	sort.Slice(debtors, func(i, j int) bool { return debtors[i].UserID < debtors[j].UserID })
+	sort.Slice(creditors, func(i, j int) bool { return creditors[i].UserID < creditors[j].UserID })
+
 	// 3. Resolve debts (Greedy algorithm)
 	var debts []domain.Debt
 	i, j := 0, 0
@@ -126,8 +132,12 @@ func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount f
 		return nil, errors.New("from_user_id and to_user_id must differ")
 	}
 
-	if _, err := s.groupRepo.GetByID(groupID); err != nil {
+	group, err := s.groupRepo.GetByID(groupID)
+	if err != nil {
 		return nil, errors.New("group not found")
+	}
+	if !isMember(group, fromUserID) || !isMember(group, toUserID) {
+		return nil, errors.New("both users must be members of the group")
 	}
 
 	settlement := &domain.Settlement{

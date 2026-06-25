@@ -20,9 +20,12 @@ func ConnectDB() {
 	user := getEnv("DB_USER", "postgres")
 	password := getEnv("DB_PASSWORD", "postgres")
 	dbname := getEnv("DB_NAME", "spliteasy")
+	// Secure by default: TLS is required unless explicitly disabled (e.g. a local
+	// Postgres without SSL sets DB_SSLMODE=disable).
+	sslmode := getEnv("DB_SSLMODE", "require")
 
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-		host, user, password, dbname, port)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+		host, user, password, dbname, port, sslmode)
 
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})

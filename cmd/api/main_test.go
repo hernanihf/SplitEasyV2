@@ -32,8 +32,10 @@ func TestSwaggerRoute(t *testing.T) {
 	r := chi.NewRouter()
 	r.Handle("/swagger/*", handler.SwaggerHandler())
 
-	// Test requesting the swagger specification JSON file
+	// Test requesting the swagger specification JSON file. httpSwagger reads
+	// RequestURI to resolve the resource, which http.NewRequest leaves empty.
 	req, _ := http.NewRequest("GET", "/swagger/doc.json", nil)
+	req.RequestURI = "/swagger/doc.json"
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

@@ -21,6 +21,7 @@ type GroupService interface {
 	ListGroupsForUser(userID uint) ([]domain.Group, error)
 	GetInviteToken(groupID, userID uint) (string, error)
 	JoinGroup(token string, userID uint) (*domain.Group, error)
+	VerifyMembership(groupID, userID uint) error
 }
 
 type groupService struct {
@@ -87,6 +88,20 @@ func (s *groupService) CreateGroup(name, emoji string, creatorID uint) (*domain.
 
 func (s *groupService) GetGroup(id uint) (*domain.Group, error) {
 	return s.groupRepo.GetByID(id)
+}
+
+// VerifyMembership returns nil only if userID belongs to the group, so callers
+// can authorize access to group-scoped resources. It returns ErrGroupNotFound
+// or ErrNotGroupMember otherwise.
+func (s *groupService) VerifyMembership(groupID, userID uint) error {
+	group, err := s.groupRepo.GetByID(groupID)
+	if err != nil {
+		return ErrGroupNotFound
+	}
+	if !isMember(group, userID) {
+		return ErrNotGroupMember
+	}
+	return nil
 }
 
 func (s *groupService) ListGroupsForUser(userID uint) ([]domain.Group, error) {

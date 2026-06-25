@@ -75,7 +75,7 @@ func newTestBalanceService(expenses []domain.Expense, settlements []domain.Settl
 	settlementRepo := &fakeSettlementRepo{settlements: settlements}
 	svc := NewBalanceService(
 		&fakeExpenseRepo{expenses: expenses},
-		&fakeGroupRepo{group: &domain.Group{ID: 1}},
+		&fakeGroupRepo{group: &domain.Group{ID: 1, Members: []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}}},
 		settlementRepo,
 	)
 	return svc, settlementRepo
@@ -193,6 +193,18 @@ func TestSettleDebt_PersistsSettlement(t *testing.T) {
 	}
 	if len(settlementRepo.created) != 1 {
 		t.Fatalf("expected settlement to be persisted, got %d", len(settlementRepo.created))
+	}
+}
+
+func TestSettleDebt_RejectsNonMembers(t *testing.T) {
+	svc, settlementRepo := newTestBalanceService(nil, nil)
+
+	// User 99 is not a member of the group (members are 1, 2, 3).
+	if _, err := svc.SettleDebt(1, 99, 1, 10); err == nil {
+		t.Error("expected error when a party is not a group member")
+	}
+	if len(settlementRepo.created) != 0 {
+		t.Errorf("expected no settlement to be persisted, got %d", len(settlementRepo.created))
 	}
 }
 

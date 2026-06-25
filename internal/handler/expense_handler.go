@@ -11,10 +11,11 @@ import (
 
 type ExpenseHandler struct {
 	expenseService service.ExpenseService
+	groupService   service.GroupService
 }
 
-func NewExpenseHandler(expenseService service.ExpenseService) *ExpenseHandler {
-	return &ExpenseHandler{expenseService}
+func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService) *ExpenseHandler {
+	return &ExpenseHandler{expenseService, groupService}
 }
 
 type SplitInputRequest struct {
@@ -41,6 +42,8 @@ type AddExpenseRequest struct {
 // @Success      201      {object}  domain.Expense
 // @Failure      400      {string}  string  "Bad Request"
 // @Failure      401      {string}  string  "Unauthorized"
+// @Failure      403      {string}  string  "Forbidden"
+// @Failure      404      {string}  string  "Not Found"
 // @Failure      500      {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /expenses [post]
@@ -48,6 +51,10 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 	var req AddExpenseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, req.GroupID) {
 		return
 	}
 
@@ -83,6 +90,8 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 // @Success      200      {array}   domain.Expense
 // @Failure      400      {string}  string  "Bad Request"
 // @Failure      401      {string}  string  "Unauthorized"
+// @Failure      403      {string}  string  "Forbidden"
+// @Failure      404      {string}  string  "Not Found"
 // @Failure      500      {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /groups/{groupId}/expenses [get]
@@ -91,6 +100,10 @@ func (h *ExpenseHandler) GetGroupExpenses(w http.ResponseWriter, r *http.Request
 	groupID, err := strconv.ParseUint(groupIDStr, 10, 32)
 	if err != nil {
 		http.Error(w, "invalid group_id", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
 		return
 	}
 
