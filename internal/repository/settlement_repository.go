@@ -1,14 +1,16 @@
 package repository
 
 import (
+	"context"
+
 	"spliteasy/internal/domain"
 
 	"gorm.io/gorm"
 )
 
 type SettlementRepository interface {
-	Create(settlement *domain.Settlement) error
-	GetByGroupID(groupID uint) ([]domain.Settlement, error)
+	Create(ctx context.Context, settlement *domain.Settlement) error
+	GetByGroupID(ctx context.Context, groupID uint) ([]domain.Settlement, error)
 }
 
 type settlementRepository struct {
@@ -19,13 +21,13 @@ func NewSettlementRepository(db *gorm.DB) SettlementRepository {
 	return &settlementRepository{db}
 }
 
-func (r *settlementRepository) Create(settlement *domain.Settlement) error {
-	return r.db.Create(settlement).Error
+func (r *settlementRepository) Create(ctx context.Context, settlement *domain.Settlement) error {
+	return r.db.WithContext(ctx).Create(settlement).Error
 }
 
-func (r *settlementRepository) GetByGroupID(groupID uint) ([]domain.Settlement, error) {
+func (r *settlementRepository) GetByGroupID(ctx context.Context, groupID uint) ([]domain.Settlement, error) {
 	var settlements []domain.Settlement
-	err := r.db.Where("group_id = ?", groupID).Find(&settlements).Error
+	err := r.db.WithContext(ctx).Where("group_id = ?", groupID).Find(&settlements).Error
 	if err != nil {
 		return nil, err
 	}

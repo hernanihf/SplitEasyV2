@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"math"
 	"spliteasy/internal/domain"
@@ -32,8 +33,8 @@ type SplitInput struct {
 }
 
 type ExpenseService interface {
-	AddExpense(groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error)
-	GetGroupExpenses(groupID uint) ([]domain.Expense, error)
+	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error)
+	GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error)
 }
 
 type expenseService struct {
@@ -45,12 +46,12 @@ func NewExpenseService(expenseRepo repository.ExpenseRepository, groupRepo repos
 	return &expenseService{expenseRepo, groupRepo}
 }
 
-func (s *expenseService) AddExpense(groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error) {
+func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount float64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error) {
 	if amount <= 0 {
 		return nil, errors.New("amount must be greater than zero")
 	}
 
-	group, err := s.groupRepo.GetByID(groupID)
+	group, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("group not found")
 	}
@@ -90,7 +91,7 @@ func (s *expenseService) AddExpense(groupID, paidByID uint, description string, 
 		})
 	}
 
-	if err := s.expenseRepo.CreateWithSplits(expense, splits); err != nil {
+	if err := s.expenseRepo.CreateWithSplits(ctx, expense, splits); err != nil {
 		return nil, err
 	}
 
@@ -199,6 +200,6 @@ func roundCents(value float64) float64 {
 	return math.Round(value*100) / 100
 }
 
-func (s *expenseService) GetGroupExpenses(groupID uint) ([]domain.Expense, error) {
-	return s.expenseRepo.GetByGroupID(groupID)
+func (s *expenseService) GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error) {
+	return s.expenseRepo.GetByGroupID(ctx, groupID)
 }

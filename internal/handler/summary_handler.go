@@ -33,7 +33,7 @@ func (h *SummaryHandler) GetHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := h.summaryService.GetHomeSummary(userID)
+	summary, err := h.summaryService.GetHomeSummary(r.Context(), userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -60,7 +60,7 @@ func (h *SummaryHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.summaryService.GetActivity(userID)
+	events, err := h.summaryService.GetActivity(r.Context(), userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

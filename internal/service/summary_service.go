@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"math"
 	"sort"
 
@@ -9,8 +10,8 @@ import (
 )
 
 type SummaryService interface {
-	GetHomeSummary(userID uint) (*domain.HomeSummary, error)
-	GetActivity(userID uint) ([]domain.ActivityEvent, error)
+	GetHomeSummary(ctx context.Context, userID uint) (*domain.HomeSummary, error)
+	GetActivity(ctx context.Context, userID uint) ([]domain.ActivityEvent, error)
 }
 
 type summaryService struct {
@@ -52,8 +53,8 @@ func userNet(userID uint, expenses []domain.Expense, settlements []domain.Settle
 	return math.Round(net*100) / 100
 }
 
-func (s *summaryService) GetHomeSummary(userID uint) (*domain.HomeSummary, error) {
-	groups, err := s.groupRepo.GetByUserID(userID)
+func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*domain.HomeSummary, error) {
+	groups, err := s.groupRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +62,11 @@ func (s *summaryService) GetHomeSummary(userID uint) (*domain.HomeSummary, error
 	summary := &domain.HomeSummary{Groups: []domain.GroupSummary{}}
 
 	for _, g := range groups {
-		expenses, err := s.expenseRepo.GetByGroupID(g.ID)
+		expenses, err := s.expenseRepo.GetByGroupID(ctx, g.ID)
 		if err != nil {
 			return nil, err
 		}
-		settlements, err := s.settlementRepo.GetByGroupID(g.ID)
+		settlements, err := s.settlementRepo.GetByGroupID(ctx, g.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -95,8 +96,8 @@ func (s *summaryService) GetHomeSummary(userID uint) (*domain.HomeSummary, error
 	return summary, nil
 }
 
-func (s *summaryService) GetActivity(userID uint) ([]domain.ActivityEvent, error) {
-	groups, err := s.groupRepo.GetByUserID(userID)
+func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain.ActivityEvent, error) {
+	groups, err := s.groupRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (s *summaryService) GetActivity(userID uint) ([]domain.ActivityEvent, error
 			names[m.ID] = m.Name
 		}
 
-		expenses, err := s.expenseRepo.GetByGroupID(g.ID)
+		expenses, err := s.expenseRepo.GetByGroupID(ctx, g.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +135,7 @@ func (s *summaryService) GetActivity(userID uint) ([]domain.ActivityEvent, error
 			})
 		}
 
-		settlements, err := s.settlementRepo.GetByGroupID(g.ID)
+		settlements, err := s.settlementRepo.GetByGroupID(ctx, g.ID)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"math"
 	"sort"
@@ -9,9 +10,9 @@ import (
 )
 
 type BalanceService interface {
-	CalculateGroupDebts(groupID uint) ([]domain.Debt, error)
-	SettleDebt(groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error)
-	ListSettlements(groupID uint) ([]domain.Settlement, error)
+	CalculateGroupDebts(ctx context.Context, groupID uint) ([]domain.Debt, error)
+	SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error)
+	ListSettlements(ctx context.Context, groupID uint) ([]domain.Settlement, error)
 }
 
 type balanceService struct {
@@ -28,18 +29,18 @@ func NewBalanceService(
 	return &balanceService{expenseRepo, groupRepo, settlementRepo}
 }
 
-func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error) {
-	_, err := s.groupRepo.GetByID(groupID)
+func (s *balanceService) CalculateGroupDebts(ctx context.Context, groupID uint) ([]domain.Debt, error) {
+	_, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("group not found")
 	}
 
-	expenses, err := s.expenseRepo.GetByGroupID(groupID)
+	expenses, err := s.expenseRepo.GetByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
 
-	settlements, err := s.settlementRepo.GetByGroupID(groupID)
+	settlements, err := s.settlementRepo.GetByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func (s *balanceService) CalculateGroupDebts(groupID uint) ([]domain.Debt, error
 	return debts, nil
 }
 
-func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error) {
+func (s *balanceService) SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount float64) (*domain.Settlement, error) {
 	if amount <= 0 {
 		return nil, errors.New("settlement amount must be positive")
 	}
@@ -132,7 +133,7 @@ func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount f
 		return nil, errors.New("from_user_id and to_user_id must differ")
 	}
 
-	group, err := s.groupRepo.GetByID(groupID)
+	group, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("group not found")
 	}
@@ -147,7 +148,7 @@ func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount f
 		Amount:     amount,
 	}
 
-	if err := s.settlementRepo.Create(settlement); err != nil {
+	if err := s.settlementRepo.Create(ctx, settlement); err != nil {
 		return nil, err
 	}
 
@@ -156,8 +157,8 @@ func (s *balanceService) SettleDebt(groupID, fromUserID, toUserID uint, amount f
 
 // ListSettlements returns every recorded payment in the group, for the unified
 // history view. Balances are still computed separately from these.
-func (s *balanceService) ListSettlements(groupID uint) ([]domain.Settlement, error) {
-	settlements, err := s.settlementRepo.GetByGroupID(groupID)
+func (s *balanceService) ListSettlements(ctx context.Context, groupID uint) ([]domain.Settlement, error) {
+	settlements, err := s.settlementRepo.GetByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}

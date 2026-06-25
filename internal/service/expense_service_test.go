@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"spliteasy/internal/domain"
@@ -11,14 +12,14 @@ type fakeExpenseRepoForCreate struct {
 	createdSplits  []domain.ExpenseSplit
 }
 
-func (f *fakeExpenseRepoForCreate) CreateWithSplits(expense *domain.Expense, splits []domain.ExpenseSplit) error {
+func (f *fakeExpenseRepoForCreate) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit) error {
 	expense.ID = 1
 	f.createdExpense = expense
 	f.createdSplits = splits
 	return nil
 }
 
-func (f *fakeExpenseRepoForCreate) GetByGroupID(groupID uint) ([]domain.Expense, error) {
+func (f *fakeExpenseRepoForCreate) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return nil, nil
 }
 
@@ -40,7 +41,7 @@ func TestAddExpense_EqualAmongAllMembers(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Dinner", 100, SplitEqual, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 100, SplitEqual, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,7 +56,7 @@ func TestAddExpense_EqualAmongSubset(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Dinner", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 2}})
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 2}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -70,7 +71,7 @@ func TestAddExpense_Percentage(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Rent", 1000, SplitPercentage, []SplitInput{
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", 1000, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: 70},
 		{UserID: 2, Value: 30},
 	})
@@ -88,7 +89,7 @@ func TestAddExpense_PercentageMustAddUpTo100(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Rent", 1000, SplitPercentage, []SplitInput{
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", 1000, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: 70},
 		{UserID: 2, Value: 20},
 	})
@@ -101,7 +102,7 @@ func TestAddExpense_Fixed(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Groceries", 300, SplitFixed, []SplitInput{
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", 300, SplitFixed, []SplitInput{
 		{UserID: 1, Value: 100},
 		{UserID: 2, Value: 200},
 	})
@@ -119,7 +120,7 @@ func TestAddExpense_FixedMustAddUpToAmount(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Groceries", 300, SplitFixed, []SplitInput{
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", 300, SplitFixed, []SplitInput{
 		{UserID: 1, Value: 100},
 		{UserID: 2, Value: 150},
 	})
@@ -132,7 +133,7 @@ func TestAddExpense_Shares(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Bread", 30, SplitShares, []SplitInput{
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Bread", 30, SplitShares, []SplitInput{
 		{UserID: 1, Value: 2},
 		{UserID: 2, Value: 4},
 	})
@@ -150,7 +151,7 @@ func TestAddExpense_RejectsNonMemberInSplit(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Dinner", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 99}})
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 99}})
 	if err == nil {
 		t.Error("expected error when split includes a non-member")
 	}
@@ -160,7 +161,7 @@ func TestAddExpense_RejectsNonMemberPayer(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 99, "Dinner", 100, SplitEqual, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 99, "Dinner", 100, SplitEqual, nil)
 	if err == nil {
 		t.Error("expected error when payer is not a member")
 	}
@@ -170,7 +171,7 @@ func TestAddExpense_RejectsNonPositiveAmount(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(1, 1, "Dinner", 0, SplitEqual, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 0, SplitEqual, nil)
 	if err == nil {
 		t.Error("expected error for non-positive amount")
 	}

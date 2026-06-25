@@ -16,7 +16,7 @@ import (
 
 type AuthService interface {
 	GetGoogleLoginURL(state string) string
-	HandleGoogleCallback(code string) (string, error)
+	HandleGoogleCallback(ctx context.Context, code string) (string, error)
 }
 
 type authService struct {
@@ -37,9 +37,9 @@ type googleUser struct {
 	Picture string `json:"picture"`
 }
 
-func (s *authService) HandleGoogleCallback(code string) (string, error) {
+func (s *authService) HandleGoogleCallback(ctx context.Context, code string) (string, error) {
 	// 1. Exchange code for token
-	token, err := config.GoogleOAuthConfig.Exchange(context.Background(), code)
+	token, err := config.GoogleOAuthConfig.Exchange(ctx, code)
 	if err != nil {
 		return "", errors.New("code exchange failed: " + err.Error())
 	}
@@ -62,7 +62,7 @@ func (s *authService) HandleGoogleCallback(code string) (string, error) {
 	}
 
 	// 3. Find or Create User
-	user, err := s.userRepo.GetByEmail(gUser.Email)
+	user, err := s.userRepo.GetByEmail(ctx, gUser.Email)
 	if err != nil {
 		// Assume user doesn't exist, create it
 		user = &domain.User{
@@ -70,7 +70,7 @@ func (s *authService) HandleGoogleCallback(code string) (string, error) {
 			Email:     gUser.Email,
 			AvatarURL: gUser.Picture,
 		}
-		err = s.userRepo.Create(user)
+		err = s.userRepo.Create(ctx, user)
 		if err != nil {
 			return "", errors.New("failed to create user: " + err.Error())
 		}
@@ -78,7 +78,7 @@ func (s *authService) HandleGoogleCallback(code string) (string, error) {
 		// Keep the profile fresh with what Google reports on each login.
 		user.Name = gUser.Name
 		user.AvatarURL = gUser.Picture
-		if err := s.userRepo.Update(user); err != nil {
+		if err := s.userRepo.Update(ctx, user); err != nil {
 			return "", errors.New("failed to update user: " + err.Error())
 		}
 	}

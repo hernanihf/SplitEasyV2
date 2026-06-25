@@ -64,6 +64,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expense, err := h.expenseService.AddExpense(
+		r.Context(),
 		req.GroupID,
 		req.PaidByID,
 		req.Description,
@@ -107,7 +108,7 @@ func (h *ExpenseHandler) GetGroupExpenses(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	expenses, err := h.expenseService.GetGroupExpenses(uint(groupID))
+	expenses, err := h.expenseService.GetGroupExpenses(r.Context(), uint(groupID))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

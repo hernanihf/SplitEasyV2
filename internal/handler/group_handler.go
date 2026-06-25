@@ -30,7 +30,7 @@ func authorizeGroupAccess(w http.ResponseWriter, r *http.Request, gs service.Gro
 		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
 		return false
 	}
-	switch err := gs.VerifyMembership(groupID, userID); {
+	switch err := gs.VerifyMembership(r.Context(), groupID, userID); {
 	case err == nil:
 		return true
 	case errors.Is(err, service.ErrGroupNotFound):
@@ -74,7 +74,7 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := h.groupService.CreateGroup(req.Name, req.Emoji, userID)
+	group, err := h.groupService.CreateGroup(r.Context(), req.Name, req.Emoji, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -110,7 +110,7 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := h.groupService.GetGroup(uint(id))
+	group, err := h.groupService.GetGroup(r.Context(), uint(id))
 	if err != nil {
 		http.Error(w, "group not found", http.StatusNotFound)
 		return
@@ -137,7 +137,7 @@ func (h *GroupHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := h.groupService.ListGroupsForUser(userID)
+	groups, err := h.groupService.ListGroupsForUser(r.Context(), userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -190,7 +190,7 @@ func (h *GroupHandler) GetInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.groupService.GetInviteToken(uint(id), userID)
+	token, err := h.groupService.GetInviteToken(r.Context(), uint(id), userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrGroupNotFound):
@@ -236,7 +236,7 @@ func (h *GroupHandler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := h.groupService.JoinGroup(req.Token, userID)
+	group, err := h.groupService.JoinGroup(r.Context(), req.Token, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

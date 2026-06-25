@@ -1,14 +1,16 @@
 package service
 
 import (
+	"context"
 	"errors"
+
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
 )
 
 type UserService interface {
-	CreateUser(name, email string) (*domain.User, error)
-	GetUser(id uint) (*domain.User, error)
+	CreateUser(ctx context.Context, name, email string) (*domain.User, error)
+	GetUser(ctx context.Context, id uint) (*domain.User, error)
 }
 
 type userService struct {
@@ -19,13 +21,13 @@ func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo}
 }
 
-func (s *userService) CreateUser(name, email string) (*domain.User, error) {
+func (s *userService) CreateUser(ctx context.Context, name, email string) (*domain.User, error) {
 	if name == "" || email == "" {
 		return nil, errors.New("name and email are required")
 	}
 
 	// Check if user already exists
-	existingUser, _ := s.repo.GetByEmail(email)
+	existingUser, _ := s.repo.GetByEmail(ctx, email)
 	if existingUser != nil {
 		return nil, errors.New("user with this email already exists")
 	}
@@ -35,7 +37,7 @@ func (s *userService) CreateUser(name, email string) (*domain.User, error) {
 		Email: email,
 	}
 
-	err := s.repo.Create(user)
+	err := s.repo.Create(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +45,6 @@ func (s *userService) CreateUser(name, email string) (*domain.User, error) {
 	return user, nil
 }
 
-func (s *userService) GetUser(id uint) (*domain.User, error) {
-	return s.repo.GetByID(id)
+func (s *userService) GetUser(ctx context.Context, id uint) (*domain.User, error) {
+	return s.repo.GetByID(ctx, id)
 }

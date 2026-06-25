@@ -43,7 +43,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userService.CreateUser(req.Name, req.Email)
+	user, err := h.userService.CreateUser(r.Context(), req.Name, req.Email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,7 +71,7 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userService.GetUser(userID)
+	user, err := h.userService.GetUser(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
@@ -101,7 +101,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userService.GetUser(uint(id))
+	user, err := h.userService.GetUser(r.Context(), uint(id))
 	if err != nil {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return

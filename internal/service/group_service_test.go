@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"spliteasy/internal/domain"
@@ -10,12 +11,12 @@ type fakeUserRepoForGroups struct {
 	user *domain.User
 }
 
-func (f *fakeUserRepoForGroups) Create(user *domain.User) error { return nil }
-func (f *fakeUserRepoForGroups) Update(user *domain.User) error { return nil }
-func (f *fakeUserRepoForGroups) GetByEmail(email string) (*domain.User, error) {
+func (f *fakeUserRepoForGroups) Create(_ context.Context, user *domain.User) error { return nil }
+func (f *fakeUserRepoForGroups) Update(_ context.Context, user *domain.User) error { return nil }
+func (f *fakeUserRepoForGroups) GetByEmail(_ context.Context, email string) (*domain.User, error) {
 	return f.user, nil
 }
-func (f *fakeUserRepoForGroups) GetByID(id uint) (*domain.User, error) {
+func (f *fakeUserRepoForGroups) GetByID(_ context.Context, id uint) (*domain.User, error) {
 	if f.user == nil {
 		return nil, errExpected
 	}
@@ -40,7 +41,7 @@ func newGroupService(group *domain.Group) (*groupService, *fakeGroupRepo) {
 func TestCreateGroup_GeneratesInviteToken(t *testing.T) {
 	svc, _ := newGroupService(nil)
 
-	group, err := svc.CreateGroup("Asado", "🏔️", 1)
+	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestGetInviteToken_RejectsNonMember(t *testing.T) {
 	group := &domain.Group{ID: 1, InviteToken: "tok", Members: []domain.User{{ID: 1}}}
 	svc, _ := newGroupService(group)
 
-	if _, err := svc.GetInviteToken(1, 99); err == nil {
+	if _, err := svc.GetInviteToken(context.Background(), 1, 99); err == nil {
 		t.Error("expected error when a non-member requests the invite")
 	}
 }
@@ -62,7 +63,7 @@ func TestGetInviteToken_ReturnsTokenForMember(t *testing.T) {
 	group := &domain.Group{ID: 1, InviteToken: "tok-123", Members: []domain.User{{ID: 7}}}
 	svc, _ := newGroupService(group)
 
-	token, err := svc.GetInviteToken(1, 7)
+	token, err := svc.GetInviteToken(context.Background(), 1, 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestGetInviteToken_LazilyGeneratesWhenEmpty(t *testing.T) {
 	group := &domain.Group{ID: 5, InviteToken: "", Members: []domain.User{{ID: 7}}}
 	svc, repo := newGroupService(group)
 
-	token, err := svc.GetInviteToken(5, 7)
+	token, err := svc.GetInviteToken(context.Background(), 5, 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,11 +92,11 @@ func TestGetInviteToken_IsIdempotentOnceGenerated(t *testing.T) {
 	group := &domain.Group{ID: 5, InviteToken: "", Members: []domain.User{{ID: 7}}}
 	svc, _ := newGroupService(group)
 
-	first, err := svc.GetInviteToken(5, 7)
+	first, err := svc.GetInviteToken(context.Background(), 5, 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	second, err := svc.GetInviteToken(5, 7)
+	second, err := svc.GetInviteToken(context.Background(), 5, 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,7 +109,7 @@ func TestJoinGroup_AddsMember(t *testing.T) {
 	group := &domain.Group{ID: 3, InviteToken: "valid-token"}
 	svc, repo := newGroupService(group)
 
-	joined, err := svc.JoinGroup("valid-token", 42)
+	joined, err := svc.JoinGroup(context.Background(), "valid-token", 42)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -123,7 +124,7 @@ func TestJoinGroup_AddsMember(t *testing.T) {
 func TestJoinGroup_RejectsEmptyToken(t *testing.T) {
 	svc, _ := newGroupService(&domain.Group{ID: 1})
 
-	if _, err := svc.JoinGroup("", 1); err == nil {
+	if _, err := svc.JoinGroup(context.Background(), "", 1); err == nil {
 		t.Error("expected error for empty token")
 	}
 }
@@ -131,7 +132,7 @@ func TestJoinGroup_RejectsEmptyToken(t *testing.T) {
 func TestJoinGroup_RejectsInvalidToken(t *testing.T) {
 	svc, _ := newGroupService(nil) // GetByInviteToken returns error when group is nil
 
-	if _, err := svc.JoinGroup("bogus", 1); err == nil {
+	if _, err := svc.JoinGroup(context.Background(), "bogus", 1); err == nil {
 		t.Error("expected error for invalid token")
 	}
 }

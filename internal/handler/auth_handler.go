@@ -105,7 +105,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.HandleGoogleCallback(code)
+	token, err := h.authService.HandleGoogleCallback(r.Context(), code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

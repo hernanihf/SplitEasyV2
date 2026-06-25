@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -11,11 +12,11 @@ type fakeExpenseRepo struct {
 	expenses []domain.Expense
 }
 
-func (f *fakeExpenseRepo) CreateWithSplits(expense *domain.Expense, splits []domain.ExpenseSplit) error {
+func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit) error {
 	return nil
 }
 
-func (f *fakeExpenseRepo) GetByGroupID(groupID uint) ([]domain.Expense, error) {
+func (f *fakeExpenseRepo) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return f.expenses, nil
 }
 
@@ -25,30 +26,32 @@ type fakeGroupRepo struct {
 	updatedTokens map[uint]string
 }
 
-func (f *fakeGroupRepo) Create(group *domain.Group) error { return nil }
+func (f *fakeGroupRepo) Create(_ context.Context, group *domain.Group) error { return nil }
 
-func (f *fakeGroupRepo) GetByID(id uint) (*domain.Group, error) {
+func (f *fakeGroupRepo) GetByID(_ context.Context, id uint) (*domain.Group, error) {
 	if f.group == nil {
 		return nil, errors.New("not found")
 	}
 	return f.group, nil
 }
 
-func (f *fakeGroupRepo) GetByUserID(userID uint) ([]domain.Group, error) { return nil, nil }
+func (f *fakeGroupRepo) GetByUserID(_ context.Context, userID uint) ([]domain.Group, error) {
+	return nil, nil
+}
 
-func (f *fakeGroupRepo) GetByInviteToken(token string) (*domain.Group, error) {
+func (f *fakeGroupRepo) GetByInviteToken(_ context.Context, token string) (*domain.Group, error) {
 	if f.group == nil {
 		return nil, errors.New("not found")
 	}
 	return f.group, nil
 }
 
-func (f *fakeGroupRepo) AddMember(groupID, userID uint) error {
+func (f *fakeGroupRepo) AddMember(_ context.Context, groupID, userID uint) error {
 	f.addedMembers = append(f.addedMembers, [2]uint{groupID, userID})
 	return nil
 }
 
-func (f *fakeGroupRepo) SetInviteTokenIfEmpty(groupID uint, token string) error {
+func (f *fakeGroupRepo) SetInviteTokenIfEmpty(_ context.Context, groupID uint, token string) error {
 	if f.updatedTokens == nil {
 		f.updatedTokens = map[uint]string{}
 	}
@@ -66,13 +69,13 @@ type fakeSettlementRepo struct {
 	created     []*domain.Settlement
 }
 
-func (f *fakeSettlementRepo) Create(settlement *domain.Settlement) error {
+func (f *fakeSettlementRepo) Create(_ context.Context, settlement *domain.Settlement) error {
 	settlement.ID = uint(len(f.created) + 1)
 	f.created = append(f.created, settlement)
 	return nil
 }
 
-func (f *fakeSettlementRepo) GetByGroupID(groupID uint) ([]domain.Settlement, error) {
+func (f *fakeSettlementRepo) GetByGroupID(_ context.Context, groupID uint) ([]domain.Settlement, error) {
 	return f.settlements, nil
 }
 
@@ -100,7 +103,7 @@ func TestCalculateGroupDebts_NoSettlements(t *testing.T) {
 
 	svc, _ := newTestBalanceService(expenses, nil)
 
-	debts, err := svc.CalculateGroupDebts(1)
+	debts, err := svc.CalculateGroupDebts(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,7 +132,7 @@ func TestCalculateGroupDebts_SettlementReducesDebt(t *testing.T) {
 
 	svc, _ := newTestBalanceService(expenses, settlements)
 
-	debts, err := svc.CalculateGroupDebts(1)
+	debts, err := svc.CalculateGroupDebts(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,7 +161,7 @@ func TestCalculateGroupDebts_FullySettled(t *testing.T) {
 
 	svc, _ := newTestBalanceService(expenses, settlements)
 
-	debts, err := svc.CalculateGroupDebts(1)
+	debts, err := svc.CalculateGroupDebts(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,10 +173,10 @@ func TestCalculateGroupDebts_FullySettled(t *testing.T) {
 func TestSettleDebt_RejectsNonPositiveAmount(t *testing.T) {
 	svc, _ := newTestBalanceService(nil, nil)
 
-	if _, err := svc.SettleDebt(1, 2, 1, 0); err == nil {
+	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, 0); err == nil {
 		t.Error("expected error for zero amount")
 	}
-	if _, err := svc.SettleDebt(1, 2, 1, -10); err == nil {
+	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, -10); err == nil {
 		t.Error("expected error for negative amount")
 	}
 }
@@ -181,7 +184,7 @@ func TestSettleDebt_RejectsNonPositiveAmount(t *testing.T) {
 func TestSettleDebt_RejectsSameUser(t *testing.T) {
 	svc, _ := newTestBalanceService(nil, nil)
 
-	if _, err := svc.SettleDebt(1, 1, 1, 10); err == nil {
+	if _, err := svc.SettleDebt(context.Background(), 1, 1, 1, 10); err == nil {
 		t.Error("expected error when from_user_id equals to_user_id")
 	}
 }
@@ -189,7 +192,7 @@ func TestSettleDebt_RejectsSameUser(t *testing.T) {
 func TestSettleDebt_PersistsSettlement(t *testing.T) {
 	svc, settlementRepo := newTestBalanceService(nil, nil)
 
-	settlement, err := svc.SettleDebt(1, 2, 1, 30)
+	settlement, err := svc.SettleDebt(context.Background(), 1, 2, 1, 30)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -205,7 +208,7 @@ func TestSettleDebt_RejectsNonMembers(t *testing.T) {
 	svc, settlementRepo := newTestBalanceService(nil, nil)
 
 	// User 99 is not a member of the group (members are 1, 2, 3).
-	if _, err := svc.SettleDebt(1, 99, 1, 10); err == nil {
+	if _, err := svc.SettleDebt(context.Background(), 1, 99, 1, 10); err == nil {
 		t.Error("expected error when a party is not a group member")
 	}
 	if len(settlementRepo.created) != 0 {
@@ -221,7 +224,7 @@ func TestSettleDebt_GroupNotFound(t *testing.T) {
 		settlementRepo,
 	)
 
-	if _, err := svc.SettleDebt(1, 2, 1, 30); err == nil {
+	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, 30); err == nil {
 		t.Error("expected error when group does not exist")
 	}
 }
