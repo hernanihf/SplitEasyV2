@@ -7,3 +7,12 @@ linters:
   enable:
     - misspell
     - unconvert
+  settings:
+    errcheck:
+      # These errors are not actionable: writing JSON to an http.ResponseWriter
+      # (headers already sent) and closing a reader in a defer. Excluding them
+      # keeps errcheck focused on errors that actually matter.
+      exclude-functions:
+        - (*encoding/json.Encoder).Encode
+        - (io.ReadCloser).Close
+        - (mime/multipart.File).Close
