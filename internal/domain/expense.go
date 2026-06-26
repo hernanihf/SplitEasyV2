@@ -17,4 +17,5 @@ type Expense struct {
 	PaidBy User           `gorm:"foreignKey:PaidByID" json:"paid_by"`
 	Group  Group          `gorm:"foreignKey:GroupID" json:"-"`
 	Splits []ExpenseSplit `json:"splits"`
+	Items  []ExpenseItem  `json:"items,omitempty"`
 }

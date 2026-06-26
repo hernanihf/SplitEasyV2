@@ -36,8 +36,17 @@ type SplitInput struct {
 	Value  float64
 }
 
+// ItemInput is a single line item of an itemized expense, assigned to one or
+// more members. Items are persisted for display; they don't drive the balances
+// (the computed Splits do). Amount is in cents.
+type ItemInput struct {
+	Description string
+	Amount      int64
+	UserIDs     []uint
+}
+
 type ExpenseService interface {
-	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error)
+	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
 	GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error)
 }
 
@@ -50,7 +59,7 @@ func NewExpenseService(expenseRepo repository.ExpenseRepository, groupRepo repos
 	return &expenseService{expenseRepo, groupRepo}
 }
 
-func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput) (*domain.Expense, error) {
+func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
 	if amount <= 0 {
 		return nil, errors.New("amount must be greater than zero")
 	}
@@ -95,11 +104,30 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 		})
 	}
 
-	if err := s.expenseRepo.CreateWithSplits(ctx, expense, splits); err != nil {
+	// Build line items (optional). Each item is assigned to members; those
+	// users must belong to the group.
+	var domainItems []domain.ExpenseItem
+	for _, item := range items {
+		users := make([]domain.User, 0, len(item.UserIDs))
+		for _, uid := range item.UserIDs {
+			if !memberIDs[uid] {
+				return nil, errors.New("item assigned to a user who is not a member of the group")
+			}
+			users = append(users, domain.User{ID: uid})
+		}
+		domainItems = append(domainItems, domain.ExpenseItem{
+			Description: item.Description,
+			Amount:      item.Amount,
+			Users:       users,
+		})
+	}
+
+	if err := s.expenseRepo.CreateWithSplits(ctx, expense, splits, domainItems); err != nil {
 		return nil, err
 	}
 
 	expense.Splits = splits
+	expense.Items = domainItems
 	return expense, nil
 }
 

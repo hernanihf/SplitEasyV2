@@ -1038,6 +1038,12 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExpenseItem"
+                    }
+                },
                 "paid_by": {
                     "description": "Relationships",
                     "allOf": [
@@ -1057,6 +1063,31 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.ExpenseItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "cents",
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expense_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "users": {
+                    "description": "Members this item is split among (equally).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.User"
+                    }
                 }
             }
         },
@@ -1284,6 +1315,12 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.ItemInputRequest"
+                    }
+                },
                 "paid_by_id": {
                     "type": "integer",
                     "example": 1
@@ -1340,6 +1377,25 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.ItemInputRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "example": 1500
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Burger"
+                },
+                "user_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

@@ -23,6 +23,12 @@ type SplitInputRequest struct {
 	Value  float64 `json:"value" example:"50"`
 }
 
+type ItemInputRequest struct {
+	Description string `json:"description" example:"Burger"`
+	Amount      int64  `json:"amount" example:"1500"`
+	UserIDs     []uint `json:"user_ids"`
+}
+
 type AddExpenseRequest struct {
 	GroupID     uint                `json:"group_id" example:"1"`
 	PaidByID    uint                `json:"paid_by_id" example:"1"`
@@ -30,6 +36,7 @@ type AddExpenseRequest struct {
 	Amount      int64               `json:"amount" example:"12050"`
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
+	Items       []ItemInputRequest  `json:"items"`
 }
 
 // AddExpense godoc
@@ -63,6 +70,11 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		splitInputs[i] = service.SplitInput{UserID: s.UserID, Value: s.Value}
 	}
 
+	items := make([]service.ItemInput, len(req.Items))
+	for i, it := range req.Items {
+		items[i] = service.ItemInput{Description: it.Description, Amount: it.Amount, UserIDs: it.UserIDs}
+	}
+
 	expense, err := h.expenseService.AddExpense(
 		r.Context(),
 		req.GroupID,
@@ -71,6 +83,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		req.Amount,
 		service.SplitMethod(req.SplitMethod),
 		splitInputs,
+		items,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

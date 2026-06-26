@@ -12,7 +12,7 @@ type fakeExpenseRepo struct {
 	expenses []domain.Expense
 }
 
-func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit) error {
+func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, _ []domain.ExpenseItem) error {
 	return nil
 }
 

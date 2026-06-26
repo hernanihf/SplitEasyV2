@@ -49,6 +49,10 @@ definitions:
         type: integer
       id:
         type: integer
+      items:
+        items:
+          $ref: '#/definitions/domain.ExpenseItem'
+        type: array
       paid_by:
         allOf:
         - $ref: '#/definitions/domain.User'
@@ -61,6 +65,23 @@ definitions:
         type: array
       updated_at:
         type: string
+    type: object
+  domain.ExpenseItem:
+    properties:
+      amount:
+        description: cents
+        type: integer
+      description:
+        type: string
+      expense_id:
+        type: integer
+      id:
+        type: integer
+      users:
+        description: Members this item is split among (equally).
+        items:
+          $ref: '#/definitions/domain.User'
+        type: array
     type: object
   domain.ExpenseSplit:
     properties:
@@ -209,6 +230,10 @@ definitions:
       group_id:
         example: 1
         type: integer
+      items:
+        items:
+          $ref: '#/definitions/handler.ItemInputRequest'
+        type: array
       paid_by_id:
         example: 1
         type: integer
@@ -249,6 +274,19 @@ definitions:
         type: string
       url:
         type: string
+    type: object
+  handler.ItemInputRequest:
+    properties:
+      amount:
+        example: 1500
+        type: integer
+      description:
+        example: Burger
+        type: string
+      user_ids:
+        items:
+          type: integer
+        type: array
     type: object
   handler.JoinGroupRequest:
     properties:
