@@ -70,11 +70,11 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 // GoogleCallback godoc
 // @Summary      Handle Google Login Callback
-// @Description  Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token as a query param.
+// @Description  Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token in the URL fragment (#token=...). The fragment is never sent to the frontend server, so the JWT does not appear in access logs, CDN logs, or Referer headers.
 // @Tags         auth
 // @Param        state  query     string  true  "OAuth state validation"
 // @Param        code   query     string  true  "Authorization code"
-// @Success      307    "Temporary Redirect to FRONTEND_REDIRECT_URL?token=..."
+// @Success      307    "Temporary Redirect to FRONTEND_REDIRECT_URL#token=..."
 // @Failure      400    {string}  string "Bad Request"
 // @Failure      500    {string}  string "Internal Server Error"
 // @Router       /auth/google/callback [get]
@@ -116,9 +116,13 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid frontend redirect url: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	query := redirectURL.Query()
-	query.Set("token", token)
-	redirectURL.RawQuery = query.Encode()
+
+	// Embed the JWT in the URL fragment instead of a query parameter.
+	// The fragment (#) is processed entirely by the browser — it is never
+	// transmitted to the frontend server, so the token will not appear in
+	// access logs, CDN/proxy logs, or downstream Referer headers.
+	// The frontend reads it via: new URLSearchParams(window.location.hash.slice(1)).get("token")
+	redirectURL.Fragment = "token=" + token
 
 	http.Redirect(w, r, redirectURL.String(), http.StatusTemporaryRedirect)
 }
