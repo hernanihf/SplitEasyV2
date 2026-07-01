@@ -37,7 +37,7 @@ func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("image")
+	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "image file is required", http.StatusBadRequest)
 		return
@@ -50,7 +50,11 @@ func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType := header.Header.Get("Content-Type")
+	// Don't trust the client-supplied Content-Type header — a client can label
+	// any file (e.g. an .exe or .html) as "image/jpeg" to get past the
+	// allowlist check downstream. Detect the real type from the file's magic
+	// bytes instead.
+	mimeType := http.DetectContentType(imageBytes)
 
 	scan, err := h.receiptService.ParseReceipt(imageBytes, mimeType)
 	if err != nil {
