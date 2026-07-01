@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
 
@@ -107,6 +108,7 @@ type SettleDebtRequest struct {
 // @Success      201       {object}  domain.Settlement
 // @Failure      400       {string}  string  "Bad Request"
 // @Failure      401       {string}  string  "Unauthorized"
+// @Failure      403       {string}  string  "Forbidden"
 // @Failure      500       {string}  string  "Internal Server Error"
 // @Security     JWT
 // @Router       /groups/{id}/settlements [post]
@@ -125,6 +127,20 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 	var req SettleDebtRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// A settlement can only be recorded by one of its two parties (the payer
+	// confirming they paid, or the payee confirming they got paid) — otherwise
+	// any group member could mark an arbitrary pair's debt as settled without
+	// either of them being involved.
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+	if req.FromUserID != userID && req.ToUserID != userID {
+		http.Error(w, "you must be a party to the settlement", http.StatusForbidden)
 		return
 	}
 
