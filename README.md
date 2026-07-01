@@ -161,7 +161,7 @@ docker run -p 8080:8080 --env-file .env spliteasy
 ### Protected Routes (Requires Header: `Authorization: Bearer <JWT_TOKEN>`)
 
 #### Users
-*   `GET /api/v1/users/{id}` - Retrieve user details by ID.
+*   `GET /api/v1/users/me` - Retrieve the authenticated user's profile.
 
 #### Groups
 *   `POST /api/v1/groups` - Create a new expense sharing group. The authenticated user becomes its creator and first member.

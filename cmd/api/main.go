@@ -147,7 +147,6 @@ func main() {
 
 		// Users
 		r.Get("/users/me", userHandler.GetMe)
-		r.Get("/users/{id}", userHandler.GetUser)
 
 		// Groups
 		r.Post("/groups", groupHandler.CreateGroup)

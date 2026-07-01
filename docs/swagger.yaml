@@ -920,39 +920,6 @@ paths:
       summary: Scan a receipt image or PDF
       tags:
       - expenses
-  /users/{id}:
-    get:
-      description: Retrieves a user by ID.
-      parameters:
-      - description: User ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/domain.User'
-        "400":
-          description: Bad Request
-          schema:
-            type: string
-        "401":
-          description: Unauthorized
-          schema:
-            type: string
-        "404":
-          description: Not Found
-          schema:
-            type: string
-      security:
-      - JWT: []
-      summary: Get a user
-      tags:
-      - users
   /users/me:
     get:
       description: Returns the profile of the currently authenticated user.
