@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"os"
 
-	"spliteasy/internal/domain"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -36,14 +34,15 @@ func ConnectDB() {
 
 	slog.Info("connected to PostgreSQL database")
 
-	// Run Auto migrations
-	err = DB.AutoMigrate(&domain.User{}, &domain.Group{}, &domain.Expense{}, &domain.ExpenseSplit{}, &domain.ExpenseItem{}, &domain.Settlement{})
+	sqlDB, err := DB.DB()
 	if err != nil {
-		slog.Error("failed to auto-migrate database", "error", err)
+		slog.Error("failed to get underlying sql.DB", "error", err)
 		os.Exit(1)
 	}
-
-	slog.Info("database migration completed")
+	if err := RunMigrations(sqlDB); err != nil {
+		slog.Error("failed to run database migrations", "error", err)
+		os.Exit(1)
+	}
 }
 
 // getEnv gets an environment variable or returns a fallback

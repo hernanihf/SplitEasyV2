@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS settlements;
+DROP TABLE IF EXISTS expense_item_users;
+DROP TABLE IF EXISTS expense_items;
+DROP TABLE IF EXISTS expense_splits;
+DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS group_users;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS users;
