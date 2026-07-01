@@ -1,16 +1,31 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
+
+// ScanLimiter is satisfied by both ScanRateLimiter (in-memory) and
+// RedisScanRateLimiter, so main.go can wire in whichever backend is
+// available without the route registration caring which one it got.
+type ScanLimiter interface {
+	Limit(next http.Handler) http.Handler
+}
 
 // ScanRateLimiter is a simple in-memory, per-user token bucket. It caps how
 // often a user can hit the receipt-scan endpoint, which is slow and billed by
 // Anthropic, so a single account can't drain the budget with repeated uploads.
+//
+// Counters live only in this process's memory, so they reset on every
+// restart/deploy — a user could in principle burn a fresh burst right after
+// a deploy. This is used as the local-dev fallback when REDIS_URL isn't set;
+// production should always have Redis configured (see NewScanRateLimiterFromEnv).
 type ScanRateLimiter struct {
 	mu       sync.Mutex
 	buckets  map[uint]*scanBucket
@@ -43,9 +58,33 @@ func NewScanRateLimiter(perHour, burst int) *ScanRateLimiter {
 }
 
 // NewScanRateLimiterFromEnv reads SCAN_RATE_PER_HOUR (default 10) and
-// SCAN_RATE_BURST (default 5).
-func NewScanRateLimiterFromEnv() *ScanRateLimiter {
-	return NewScanRateLimiter(envInt("SCAN_RATE_PER_HOUR", 10), envInt("SCAN_RATE_BURST", 5))
+// SCAN_RATE_BURST (default 5). If REDIS_URL is set, counters are stored in
+// Redis so they survive restarts/deploys and are shared across instances;
+// otherwise it falls back to the in-memory limiter (fine for local dev, not
+// for production — see the ScanRateLimiter doc comment).
+func NewScanRateLimiterFromEnv() ScanLimiter {
+	perHour := envInt("SCAN_RATE_PER_HOUR", 10)
+	burst := envInt("SCAN_RATE_BURST", 5)
+
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		log.Println("REDIS_URL not set — scan rate limiter is in-memory and will reset on every deploy")
+		return NewScanRateLimiter(perHour, burst)
+	}
+
+	opts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Printf("REDIS_URL is invalid (%v) — falling back to the in-memory rate limiter", err)
+		return NewScanRateLimiter(perHour, burst)
+	}
+	// The Limit middleware fails open on any Redis error, but the default
+	// client retries several times with backoff before giving up — during an
+	// outage that would make every scan request hang for seconds first.
+	// Tighten it so failing open actually happens quickly.
+	opts.DialTimeout = 2 * time.Second
+	opts.MaxRetries = 1
+
+	return NewRedisScanRateLimiter(redis.NewClient(opts), perHour, burst)
 }
 
 func envInt(key string, fallback int) int {
