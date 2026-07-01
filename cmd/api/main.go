@@ -38,6 +38,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// maxJSONBodyBytes caps every JSON request body except the receipt scan
+// (which needs room for an image and sets its own, larger limit). Far more
+// than any legitimate payload here — the largest realistic body is an
+// expense with a long description and a page of splits/items — while still
+// nowhere near enough for a memory-exhaustion attempt to be worthwhile.
+const maxJSONBodyBytes = 1 << 20 // 1MB
+
 func main() {
 	// JSON structured logging: production log aggregators need machine-parsable
 	// output to filter by level/field, which the stdlib "log" package can't do.
@@ -131,6 +138,7 @@ func main() {
 
 	// Public Auth Routes
 	r.Route("/api/v1/auth", func(r chi.Router) {
+		r.Use(mymiddleware.MaxBytes(maxJSONBodyBytes))
 		r.Get("/google/login", authHandler.GoogleLogin)
 		r.Get("/google/callback", authHandler.GoogleCallback)
 		r.Post("/refresh", authHandler.Refresh)
@@ -141,26 +149,33 @@ func main() {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(mymiddleware.JWTAuth)
 
-		// Home & activity
-		r.Get("/home", summaryHandler.GetHome)
-		r.Get("/activity", summaryHandler.GetActivity)
+		// Everything except the receipt scan gets the small JSON body cap;
+		// scan needs its own, larger one for image uploads (set inside the
+		// handler), and nesting MaxBytesReader only ever tightens it further.
+		r.Group(func(r chi.Router) {
+			r.Use(mymiddleware.MaxBytes(maxJSONBodyBytes))
 
-		// Users
-		r.Get("/users/me", userHandler.GetMe)
+			// Home & activity
+			r.Get("/home", summaryHandler.GetHome)
+			r.Get("/activity", summaryHandler.GetActivity)
 
-		// Groups
-		r.Post("/groups", groupHandler.CreateGroup)
-		r.Get("/groups", groupHandler.ListGroups)
-		r.Post("/groups/join", groupHandler.JoinGroup)
-		r.Get("/groups/{id}", groupHandler.GetGroup)
-		r.Get("/groups/{id}/invite", groupHandler.GetInvite)
-		r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
-		r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
-		r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
+			// Users
+			r.Get("/users/me", userHandler.GetMe)
 
-		// Expenses
-		r.Post("/expenses", expenseHandler.AddExpense)
-		r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
+			// Groups
+			r.Post("/groups", groupHandler.CreateGroup)
+			r.Get("/groups", groupHandler.ListGroups)
+			r.Post("/groups/join", groupHandler.JoinGroup)
+			r.Get("/groups/{id}", groupHandler.GetGroup)
+			r.Get("/groups/{id}/invite", groupHandler.GetInvite)
+			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
+			r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
+			r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
+
+			// Expenses
+			r.Post("/expenses", expenseHandler.AddExpense)
+			r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
+		})
 
 		// Receipts — rate limited per user (the scan is slow and billed by Anthropic)
 		r.With(scanLimiter.Limit).Post("/receipts/scan", receiptHandler.ScanReceipt)
