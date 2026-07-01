@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -50,7 +50,7 @@ func (l *RedisScanRateLimiter) Limit(next http.Handler) http.Handler {
 			// Redis being unreachable shouldn't take the whole (paid, but
 			// otherwise healthy) scan feature down — fail open and log so
 			// the outage is visible without blocking every user's requests.
-			log.Printf("rate limiter: redis error, allowing request: %v", err)
+			slog.Warn("rate limiter: redis error, allowing request", "error", err)
 			next.ServeHTTP(w, r)
 			return
 		}

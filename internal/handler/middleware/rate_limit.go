@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -68,13 +68,13 @@ func NewScanRateLimiterFromEnv() ScanLimiter {
 
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
-		log.Println("REDIS_URL not set — scan rate limiter is in-memory and will reset on every deploy")
+		slog.Warn("REDIS_URL not set, scan rate limiter is in-memory and will reset on every deploy")
 		return NewScanRateLimiter(perHour, burst)
 	}
 
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		log.Printf("REDIS_URL is invalid (%v) — falling back to the in-memory rate limiter", err)
+		slog.Error("REDIS_URL is invalid, falling back to the in-memory rate limiter", "error", err)
 		return NewScanRateLimiter(perHour, burst)
 	}
 	// The Limit middleware fails open on any Redis error, but the default

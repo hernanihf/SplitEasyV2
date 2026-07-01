@@ -21,8 +21,9 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"spliteasy/internal/config"
@@ -38,9 +39,13 @@ import (
 )
 
 func main() {
+	// JSON structured logging: production log aggregators need machine-parsable
+	// output to filter by level/field, which the stdlib "log" package can't do.
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	// Load .env file if present (local development only — ignored in production)
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, reading config from environment variables")
+		slog.Info("no .env file found, reading config from environment variables")
 	}
 
 	// Initialize Database and Auth Configurations
@@ -101,7 +106,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(map[string]string{"message": "pong", "status": "ok"}); err != nil {
-			log.Printf("/ping: failed to encode response: %v", err)
+			slog.Error("failed to encode /ping response", "error", err)
 		}
 	})
 
@@ -154,8 +159,9 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Println("Starting server on :8080...")
+	slog.Info("starting server", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		slog.Error("server failed to start", "error", err)
+		os.Exit(1)
 	}
 }

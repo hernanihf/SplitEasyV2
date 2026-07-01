@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"spliteasy/internal/domain"
@@ -30,18 +30,20 @@ func ConnectDB() {
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Connected to PostgreSQL database!")
+	slog.Info("connected to PostgreSQL database")
 
 	// Run Auto migrations
 	err = DB.AutoMigrate(&domain.User{}, &domain.Group{}, &domain.Expense{}, &domain.ExpenseSplit{}, &domain.ExpenseItem{}, &domain.Settlement{})
 	if err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
+		slog.Error("failed to auto-migrate database", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Database migration completed!")
+	slog.Info("database migration completed")
 }
 
 // getEnv gets an environment variable or returns a fallback
@@ -59,7 +61,8 @@ func getEnv(key, fallback string) string {
 func mustGetEnv(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		log.Fatalf("%s environment variable is required but not set", key)
+		slog.Error("required environment variable not set", "key", key)
+		os.Exit(1)
 	}
 	return value
 }
