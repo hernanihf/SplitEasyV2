@@ -51,8 +51,7 @@ func (h *BalanceHandler) GetGroupBalances(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(debts)
+	writeJSON(w, http.StatusOK, debts)
 }
 
 // ListSettlements godoc
@@ -87,8 +86,7 @@ func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(settlements)
+	writeJSON(w, http.StatusOK, settlements)
 }
 
 type SettleDebtRequest struct {
@@ -150,7 +148,5 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(settlement)
+	writeJSON(w, http.StatusCreated, settlement)
 }

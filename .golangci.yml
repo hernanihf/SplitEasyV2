@@ -11,11 +11,11 @@ linters:
     - gocritic
   settings:
     errcheck:
-      # These errors are not actionable: writing JSON to an http.ResponseWriter
-      # (headers already sent) and closing a reader in a defer. Excluding them
-      # keeps errcheck focused on errors that actually matter.
+      # Closing a reader in a defer can't be handled meaningfully (nothing left
+      # to do with the error at that point), so it stays excluded. json.Encode
+      # to a ResponseWriter used to be excluded too, but every call site now
+      # goes through writeJSON, which checks and logs the error itself.
       exclude-functions:
-        - (*encoding/json.Encoder).Encode
         - (io.ReadCloser).Close
         - (mime/multipart.File).Close
     gosec:

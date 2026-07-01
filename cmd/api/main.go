@@ -100,7 +100,9 @@ func main() {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "pong", "status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"message": "pong", "status": "ok"}); err != nil {
+			log.Printf("/ping: failed to encode response: %v", err)
+		}
 	})
 
 	// Swagger documentation route

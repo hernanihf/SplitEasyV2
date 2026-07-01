@@ -80,9 +80,7 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(group)
+	writeJSON(w, http.StatusCreated, group)
 }
 
 // GetGroup godoc
@@ -116,8 +114,7 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(group)
+	writeJSON(w, http.StatusOK, group)
 }
 
 // ListGroups godoc
@@ -143,8 +140,7 @@ func (h *GroupHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(groups)
+	writeJSON(w, http.StatusOK, groups)
 }
 
 type InviteResponse struct {
@@ -203,8 +199,7 @@ func (h *GroupHandler) GetInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(InviteResponse{Token: token, URL: frontendJoinURL(token)})
+	writeJSON(w, http.StatusOK, InviteResponse{Token: token, URL: frontendJoinURL(token)})
 }
 
 type JoinGroupRequest struct {
@@ -242,6 +237,5 @@ func (h *GroupHandler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(group)
+	writeJSON(w, http.StatusOK, group)
 }

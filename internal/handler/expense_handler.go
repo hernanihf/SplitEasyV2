@@ -90,9 +90,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(expense)
+	writeJSON(w, http.StatusCreated, expense)
 }
 
 // GetGroupExpenses godoc
@@ -127,6 +125,5 @@ func (h *ExpenseHandler) GetGroupExpenses(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(expenses)
+	writeJSON(w, http.StatusOK, expenses)
 }
