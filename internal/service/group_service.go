@@ -43,15 +43,6 @@ func generateInviteToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func isMember(group *domain.Group, userID uint) bool {
-	for _, member := range group.Members {
-		if member.ID == userID {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *groupService) CreateGroup(ctx context.Context, name, emoji string, creatorID uint) (*domain.Group, error) {
 	if name == "" {
 		return nil, errors.New("group name is required")
