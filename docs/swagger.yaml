@@ -259,15 +259,6 @@ definitions:
         example: Trip to Paris
         type: string
     type: object
-  handler.CreateUserRequest:
-    properties:
-      email:
-        example: john@example.com
-        type: string
-      name:
-        example: John Doe
-        type: string
-    type: object
   handler.InviteResponse:
     properties:
       token:
@@ -358,8 +349,9 @@ paths:
   /auth/google/callback:
     get:
       description: Handles the callback from Google OAuth2, exchanges authorization
-        code for a user JWT, then redirects to the frontend with the token as a query
-        param.
+        code for a user JWT, then redirects to the frontend with the token in the
+        URL fragment (#token=...). The fragment is never sent to the frontend server,
+        so the JWT does not appear in access logs, CDN logs, or Referer headers.
       parameters:
       - description: OAuth state validation
         in: query
@@ -373,7 +365,7 @@ paths:
         type: string
       responses:
         "307":
-          description: Temporary Redirect to FRONTEND_REDIRECT_URL?token=...
+          description: Temporary Redirect to FRONTEND_REDIRECT_URL#token=...
         "400":
           description: Bad Request
           schema:
@@ -743,6 +735,10 @@ paths:
           description: Unauthorized
           schema:
             type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
         "500":
           description: Internal Server Error
           schema:
@@ -850,42 +846,6 @@ paths:
       summary: Scan a receipt image or PDF
       tags:
       - expenses
-  /users:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new user in the system.
-      parameters:
-      - description: User Info
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/handler.CreateUserRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/domain.User'
-        "400":
-          description: Bad Request
-          schema:
-            type: string
-        "401":
-          description: Unauthorized
-          schema:
-            type: string
-        "500":
-          description: Internal Server Error
-          schema:
-            type: string
-      security:
-      - JWT: []
-      summary: Create a user
-      tags:
-      - users
   /users/{id}:
     get:
       description: Retrieves a user by ID.

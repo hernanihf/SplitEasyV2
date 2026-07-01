@@ -66,7 +66,7 @@ const docTemplate = `{
         },
         "/auth/google/callback": {
             "get": {
-                "description": "Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token as a query param.",
+                "description": "Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token in the URL fragment (#token=...). The fragment is never sent to the frontend server, so the JWT does not appear in access logs, CDN logs, or Referer headers.",
                 "tags": [
                     "auth"
                 ],
@@ -89,7 +89,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "307": {
-                        "description": "Temporary Redirect to FRONTEND_REDIRECT_URL?token=..."
+                        "description": "Temporary Redirect to FRONTEND_REDIRECT_URL#token=..."
                     },
                     "400": {
                         "description": "Bad Request",
@@ -711,6 +711,12 @@ const docTemplate = `{
                             "type": "string"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -805,63 +811,6 @@ const docTemplate = `{
                     },
                     "429": {
                         "description": "Too Many Requests",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/users": {
-            "post": {
-                "security": [
-                    {
-                        "JWT": []
-                    }
-                ],
-                "description": "Creates a new user in the system.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Create a user",
-                "parameters": [
-                    {
-                        "description": "User Info",
-                        "name": "user",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.CreateUserRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/domain.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "type": "string"
                         }
@@ -1353,19 +1302,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "Trip to Paris"
-                }
-            }
-        },
-        "handler.CreateUserRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "john@example.com"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "John Doe"
                 }
             }
         },

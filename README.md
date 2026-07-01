@@ -158,7 +158,6 @@ docker run -p 8080:8080 --env-file .env spliteasy
 ### Protected Routes (Requires Header: `Authorization: Bearer <JWT_TOKEN>`)
 
 #### Users
-*   `POST /api/v1/users` - Create/register a new user.
 *   `GET /api/v1/users/{id}` - Retrieve user details by ID.
 
 #### Groups

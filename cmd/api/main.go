@@ -121,7 +121,6 @@ func main() {
 		r.Get("/activity", summaryHandler.GetActivity)
 
 		// Users
-		r.Post("/users", userHandler.CreateUser)
 		r.Get("/users/me", userHandler.GetMe)
 		r.Get("/users/{id}", userHandler.GetUser)
 

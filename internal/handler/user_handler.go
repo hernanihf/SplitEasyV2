@@ -18,42 +18,6 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 	return &UserHandler{userService}
 }
 
-type CreateUserRequest struct {
-	Name  string `json:"name" example:"John Doe"`
-	Email string `json:"email" example:"john@example.com"`
-}
-
-// CreateUser godoc
-// @Summary      Create a user
-// @Description  Creates a new user in the system.
-// @Tags         users
-// @Accept       json
-// @Produce      json
-// @Param        user  body      CreateUserRequest  true  "User Info"
-// @Success      201   {object}  domain.User
-// @Failure      400   {string}  string  "Bad Request"
-// @Failure      401   {string}  string  "Unauthorized"
-// @Failure      500   {string}  string  "Internal Server Error"
-// @Security     JWT
-// @Router       /users [post]
-func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var req CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	user, err := h.userService.CreateUser(r.Context(), req.Name, req.Email)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
-}
-
 // GetMe godoc
 // @Summary      Get the authenticated user
 // @Description  Returns the profile of the currently authenticated user.
