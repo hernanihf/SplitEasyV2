@@ -31,7 +31,7 @@ func (r *settlementRepository) Create(ctx context.Context, settlement *domain.Se
 
 func (r *settlementRepository) GetByID(ctx context.Context, id uint) (*domain.Settlement, error) {
 	var settlement domain.Settlement
-	if err := r.db.WithContext(ctx).First(&settlement, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("FromUser").Preload("ToUser").First(&settlement, id).Error; err != nil {
 		return nil, err
 	}
 	return &settlement, nil
@@ -39,7 +39,11 @@ func (r *settlementRepository) GetByID(ctx context.Context, id uint) (*domain.Se
 
 func (r *settlementRepository) GetByGroupID(ctx context.Context, groupID uint) ([]domain.Settlement, error) {
 	var settlements []domain.Settlement
-	err := r.db.WithContext(ctx).Where("group_id = ?", groupID).Find(&settlements).Error
+	err := r.db.WithContext(ctx).
+		Preload("FromUser").
+		Preload("ToUser").
+		Where("group_id = ?", groupID).
+		Find(&settlements).Error
 	if err != nil {
 		return nil, err
 	}

@@ -81,6 +81,7 @@ func main() {
 	groupRepo := repository.NewGroupRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
 	settlementRepo := repository.NewSettlementRepository(db)
+	commentRepo := repository.NewCommentRepository(db)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
@@ -90,6 +91,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, refreshStore)
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel)
 	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
+	commentService := service.NewCommentService(commentRepo)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService)
@@ -99,6 +101,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
+	commentHandler := handler.NewCommentHandler(commentService, expenseService, balanceService, groupService)
 
 	// Per-user rate limiter for the paid receipt-scan endpoint.
 	scanLimiter := mymiddleware.NewScanRateLimiterFromEnv()
@@ -171,7 +174,10 @@ func main() {
 			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
 			r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
 			r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
+			r.Get("/settlements/{id}", balanceHandler.GetSettlement)
 			r.Delete("/settlements/{id}", balanceHandler.DeleteSettlement)
+			r.Post("/settlements/{id}/comments", commentHandler.AddSettlementComment)
+			r.Get("/settlements/{id}/comments", commentHandler.ListSettlementComments)
 
 			// Expenses
 			r.Post("/expenses", expenseHandler.AddExpense)
@@ -179,6 +185,12 @@ func main() {
 			r.Put("/expenses/{id}", expenseHandler.UpdateExpense)
 			r.Delete("/expenses/{id}", expenseHandler.DeleteExpense)
 			r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
+			r.Post("/expenses/{id}/comments", commentHandler.AddExpenseComment)
+			r.Get("/expenses/{id}/comments", commentHandler.ListExpenseComments)
+
+			// Comments (delete is flat, like settlements — the author check
+			// is self-contained and doesn't need a separate parent id).
+			r.Delete("/comments/{id}", commentHandler.DeleteComment)
 		})
 
 		// Receipts — rate limited per user (the scan is slow and billed by Anthropic)

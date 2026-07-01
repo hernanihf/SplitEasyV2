@@ -360,3 +360,25 @@ func TestDeleteSettlement_RejectsUnknownSettlement(t *testing.T) {
 		t.Errorf("expected ErrSettlementNotFound, got %v", err)
 	}
 }
+
+func TestGetSettlement_ReturnsAnyGroupMemberTheSettlement(t *testing.T) {
+	settlements := []domain.Settlement{{ID: 9, GroupID: 1, FromUserID: 2, ToUserID: 1, Amount: 30}}
+	svc, _ := newTestBalanceService(nil, settlements)
+
+	settlement, err := svc.GetSettlement(context.Background(), 9)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if settlement.ID != 9 {
+		t.Errorf("expected settlement 9, got %+v", settlement)
+	}
+}
+
+func TestGetSettlement_RejectsUnknownSettlement(t *testing.T) {
+	svc, _ := newTestBalanceService(nil, nil)
+
+	_, err := svc.GetSettlement(context.Background(), 999)
+	if !errors.Is(err, ErrSettlementNotFound) {
+		t.Errorf("expected ErrSettlementNotFound, got %v", err)
+	}
+}

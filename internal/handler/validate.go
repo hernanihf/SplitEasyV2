@@ -11,6 +11,7 @@ const (
 	maxEmojiLen       = 32 // compound emoji (skin tone/ZWJ sequences) can run several bytes
 	maxDescriptionLen = 500
 	maxTokenLen       = 256
+	maxCommentLen     = 1000
 )
 
 func validateMaxLen(field, value string, max int) error {

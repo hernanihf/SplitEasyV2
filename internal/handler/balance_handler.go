@@ -90,6 +90,45 @@ func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, settlements)
 }
 
+// GetSettlement godoc
+// @Summary      Get a settlement
+// @Description  Retrieves a single settlement by id. Any member of the settlement's group may view it — unlike delete, this isn't limited to the two parties.
+// @Tags         groups
+// @Produce      json
+// @Param        id   path      int  true  "Settlement ID"
+// @Success      200  {object}  domain.Settlement
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /settlements/{id} [get]
+func (h *BalanceHandler) GetSettlement(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	settlementID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	settlement, err := h.balanceService.GetSettlement(r.Context(), uint(settlementID))
+	if err != nil {
+		if errors.Is(err, service.ErrSettlementNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			internalError(w, "failed to get settlement", err)
+		}
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, settlement.GroupID) {
+		return
+	}
+
+	writeJSON(w, http.StatusOK, settlement)
+}
+
 type SettleDebtRequest struct {
 	FromUserID uint  `json:"from_user_id" example:"2"`
 	ToUserID   uint  `json:"to_user_id" example:"1"`

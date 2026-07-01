@@ -18,6 +18,10 @@ type BalanceService interface {
 	CalculateGroupDebts(ctx context.Context, groupID uint) ([]domain.Debt, error)
 	SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount int64) (*domain.Settlement, error)
 	ListSettlements(ctx context.Context, groupID uint) ([]domain.Settlement, error)
+	// GetSettlement fetches a single settlement by id. Like GetExpense,
+	// there's no from/to-party restriction here — the caller only needs to
+	// be a member of the settlement's group, enforced by the handler.
+	GetSettlement(ctx context.Context, settlementID uint) (*domain.Settlement, error)
 	// DeleteSettlement soft-deletes a settlement. callerID must be the
 	// settlement's from_user_id or to_user_id.
 	DeleteSettlement(ctx context.Context, settlementID, callerID uint) error
@@ -195,6 +199,14 @@ func (s *balanceService) ListSettlements(ctx context.Context, groupID uint) ([]d
 		settlements = []domain.Settlement{}
 	}
 	return settlements, nil
+}
+
+func (s *balanceService) GetSettlement(ctx context.Context, settlementID uint) (*domain.Settlement, error) {
+	settlement, err := s.settlementRepo.GetByID(ctx, settlementID)
+	if err != nil {
+		return nil, ErrSettlementNotFound
+	}
+	return settlement, nil
 }
 
 func (s *balanceService) DeleteSettlement(ctx context.Context, settlementID, callerID uint) error {

@@ -32,6 +32,25 @@ definitions:
         description: cents
         type: integer
     type: object
+  domain.Comment:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      expense_id:
+        type: integer
+      id:
+        type: integer
+      settlement_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/domain.User'
+      user_id:
+        type: integer
+    type: object
   domain.Debt:
     properties:
       amount:
@@ -223,6 +242,12 @@ definitions:
       name:
         type: string
       updated_at:
+        type: string
+    type: object
+  handler.AddCommentRequest:
+    properties:
+      body:
+        example: Can we split this differently?
         type: string
     type: object
   handler.AddExpenseRequest:
@@ -494,6 +519,43 @@ paths:
       summary: Refresh a session
       tags:
       - auth
+  /comments/{id}:
+    delete:
+      description: Soft-deletes a comment. Only its author may delete it.
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Delete a comment
+      tags:
+      - comments
   /expenses:
     post:
       consumes:
@@ -666,6 +728,99 @@ paths:
       summary: Edit an expense
       tags:
       - expenses
+  /expenses/{id}/comments:
+    get:
+      description: Returns every comment on an expense, oldest first. Any member of
+        the expense's group may view them.
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Comment'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: List an expense's comments
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Adds a comment to an expense. Any member of the expense's group
+        may comment.
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment body
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AddCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Comment'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Comment on an expense
+      tags:
+      - comments
   /groups:
     get:
       description: Retrieves all groups the authenticated user is a member of.
@@ -1117,6 +1272,140 @@ paths:
       summary: Delete a settlement
       tags:
       - groups
+    get:
+      description: Retrieves a single settlement by id. Any member of the settlement's
+        group may view it — unlike delete, this isn't limited to the two parties.
+      parameters:
+      - description: Settlement ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Settlement'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get a settlement
+      tags:
+      - groups
+  /settlements/{id}/comments:
+    get:
+      description: Returns every comment on a settlement, oldest first. Any member
+        of the settlement's group may view them.
+      parameters:
+      - description: Settlement ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Comment'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: List a settlement's comments
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Adds a comment to a settlement. Any member of the settlement's
+        group may comment.
+      parameters:
+      - description: Settlement ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment body
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AddCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Comment'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Comment on a settlement
+      tags:
+      - comments
   /users/me:
     get:
       description: Returns the profile of the currently authenticated user.
