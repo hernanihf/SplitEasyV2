@@ -89,8 +89,12 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
 
-# Frontend URL the user is redirected to after Google login, with the JWT as a `token` query param
+# Frontend URL the user is redirected to after Google login, with the JWT in the URL fragment (#token=...)
 FRONTEND_REDIRECT_URL=http://localhost:8081/auth/callback
+
+# Comma-separated list of origins allowed by CORS. Production must set this to
+# the frontend's real domain (e.g. https://spliteasy-app.onrender.com) — no wildcard.
+CORS_ALLOWED_ORIGINS=http://localhost:8081
 
 # Anthropic (Claude) — used to parse photographed receipts. Get one at: https://console.anthropic.com
 ANTHROPIC_API_KEY=
@@ -149,7 +153,7 @@ docker run -p 8080:8080 --env-file .env spliteasy
 
 *   `GET /ping` - Health check (returns database/application status).
 *   `GET /api/v1/auth/google/login` - Initiates Google OAuth2 login flow.
-*   `GET /api/v1/auth/google/callback` - Handles the Google OAuth2 callback, then redirects to `FRONTEND_REDIRECT_URL?token=<JWT>`.
+*   `GET /api/v1/auth/google/callback` - Handles the Google OAuth2 callback, then redirects to `FRONTEND_REDIRECT_URL#token=<JWT>`.
 
 ### Protected Routes (Requires Header: `Authorization: Bearer <JWT_TOKEN>`)
 

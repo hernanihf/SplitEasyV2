@@ -83,11 +83,13 @@ func main() {
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 
-	// CORS — the web/PWA frontend is served from a different origin than the API.
-	// Auth uses a Bearer JWT (not cookies), so allowing any origin is safe:
-	// every request still requires a valid token.
+	// CORS — the web/PWA frontend is served from a different origin than the
+	// API. Origins are explicit (CORS_ALLOWED_ORIGINS env var, comma
+	// separated) rather than a wildcard: a wildcard works today only because
+	// auth is a Bearer JWT with no cookies involved, but it would silently
+	// become a CSRF hole the moment any cookie-based credential is added.
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   config.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: false,
