@@ -31,6 +31,7 @@ type ScanRateLimiter struct {
 	buckets  map[uint]*scanBucket
 	capacity float64 // max burst
 	refill   float64 // tokens added per second
+	stop     chan struct{}
 }
 
 type scanBucket struct {
@@ -52,9 +53,17 @@ func NewScanRateLimiter(perHour, burst int) *ScanRateLimiter {
 		buckets:  make(map[uint]*scanBucket),
 		capacity: float64(burst),
 		refill:   float64(perHour) / 3600.0,
+		stop:     make(chan struct{}),
 	}
 	go l.cleanupLoop()
 	return l
+}
+
+// Close stops the background cleanup goroutine. Safe to call once; the
+// limiter is unusable afterwards. Mainly for tests and controlled shutdowns,
+// where the alternative is a goroutine that outlives its owner.
+func (l *ScanRateLimiter) Close() {
+	close(l.stop)
 }
 
 // NewScanRateLimiterFromEnv reads SCAN_RATE_PER_HOUR (default 10) and
@@ -144,14 +153,19 @@ func (l *ScanRateLimiter) Limit(next http.Handler) http.Handler {
 func (l *ScanRateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		l.mu.Lock()
-		cutoff := time.Now().Add(-1 * time.Hour)
-		for id, b := range l.buckets {
-			if b.lastSeen.Before(cutoff) {
-				delete(l.buckets, id)
+	for {
+		select {
+		case <-ticker.C:
+			l.mu.Lock()
+			cutoff := time.Now().Add(-1 * time.Hour)
+			for id, b := range l.buckets {
+				if b.lastSeen.Before(cutoff) {
+					delete(l.buckets, id)
+				}
 			}
+			l.mu.Unlock()
+		case <-l.stop:
+			return
 		}
-		l.mu.Unlock()
 	}
 }
