@@ -108,13 +108,13 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, refreshToken, err := h.authService.HandleGoogleCallback(r.Context(), code)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "google oauth callback failed", err)
 		return
 	}
 
 	redirectURL, err := url.Parse(config.FrontendRedirectURL)
 	if err != nil {
-		http.Error(w, "invalid frontend redirect url: "+err.Error(), http.StatusInternalServerError)
+		internalError(w, "invalid FRONTEND_REDIRECT_URL", err)
 		return
 	}
 
@@ -188,7 +188,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.authService.Logout(r.Context(), req.RefreshToken); err != nil {
-		http.Error(w, "failed to log out", http.StatusInternalServerError)
+		internalError(w, "failed to log out", err)
 		return
 	}
 

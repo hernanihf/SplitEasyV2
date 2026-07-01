@@ -34,7 +34,7 @@ func (h *SummaryHandler) GetHome(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.summaryService.GetHomeSummary(r.Context(), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to get home summary", err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *SummaryHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.summaryService.GetActivity(r.Context(), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to get activity feed", err)
 		return
 	}
 

@@ -47,7 +47,7 @@ func (h *BalanceHandler) GetGroupBalances(w http.ResponseWriter, r *http.Request
 
 	debts, err := h.balanceService.CalculateGroupDebts(r.Context(), uint(groupID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to calculate group debts", err)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *BalanceHandler) ListSettlements(w http.ResponseWriter, r *http.Request)
 
 	settlements, err := h.balanceService.ListSettlements(r.Context(), uint(groupID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to list settlements", err)
 		return
 	}
 

@@ -163,7 +163,7 @@ func (h *ExpenseHandler) GetGroupExpenses(w http.ResponseWriter, r *http.Request
 
 	expenses, err := h.expenseService.GetGroupExpenses(r.Context(), uint(groupID))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to get group expenses", err)
 		return
 	}
 

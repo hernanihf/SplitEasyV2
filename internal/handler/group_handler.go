@@ -84,7 +84,7 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := h.groupService.CreateGroup(r.Context(), req.Name, req.Emoji, userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to create group", err)
 		return
 	}
 
@@ -144,7 +144,7 @@ func (h *GroupHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
 
 	groups, err := h.groupService.ListGroupsForUser(r.Context(), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, "failed to list groups for user", err)
 		return
 	}
 
