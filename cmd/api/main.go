@@ -109,7 +109,7 @@ func main() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Logger)
-	r.Use(chimiddleware.Recoverer)
+	r.Use(mymiddleware.Recoverer)
 
 	// CORS — the web/PWA frontend is served from a different origin than the
 	// API. Origins are explicit (CORS_ALLOWED_ORIGINS env var, comma
