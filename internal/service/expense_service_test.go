@@ -124,6 +124,22 @@ func TestAddExpense_PercentageMustAddUpTo100(t *testing.T) {
 	}
 }
 
+func TestAddExpense_PercentageRejectsNegativeValue(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, _ := newTestExpenseService(members)
+
+	// Sums to 100 (-900 + 1000), which would otherwise pass the "adds up to
+	// 100" check while giving user 1 a negative split — i.e. a credit — and
+	// user 2 a share ten times the actual expense amount.
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", 100, SplitPercentage, []SplitInput{
+		{UserID: 1, Value: -900},
+		{UserID: 2, Value: 1000},
+	}, nil)
+	if err == nil {
+		t.Error("expected error for a negative percentage")
+	}
+}
+
 func TestAddExpense_Fixed(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
@@ -152,6 +168,22 @@ func TestAddExpense_FixedMustAddUpToAmount(t *testing.T) {
 	}, nil)
 	if err == nil {
 		t.Error("expected error when fixed amounts don't add up to the total")
+	}
+}
+
+func TestAddExpense_FixedRejectsNegativeValue(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, _ := newTestExpenseService(members)
+
+	// Sums to the expense total (300 = -200 + 500), which would otherwise
+	// pass the "adds up to the total" check while crediting user 1 instead
+	// of charging them.
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", 300, SplitFixed, []SplitInput{
+		{UserID: 1, Value: -200},
+		{UserID: 2, Value: 500},
+	}, nil)
+	if err == nil {
+		t.Error("expected error for a negative fixed amount")
 	}
 }
 

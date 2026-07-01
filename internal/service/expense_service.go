@@ -225,6 +225,9 @@ func splitByPercentage(amount int64, splitInputs []SplitInput) (map[uint]int64, 
 	userIDs := make([]uint, len(splitInputs))
 	weights := make([]float64, len(splitInputs))
 	for i, input := range splitInputs {
+		if input.Value < 0 {
+			return nil, errors.New("percentages must not be negative")
+		}
 		totalPercentage += input.Value
 		userIDs[i] = input.UserID
 		weights[i] = input.Value
@@ -244,6 +247,9 @@ func splitByFixedAmount(amount int64, splitInputs []SplitInput) (map[uint]int64,
 	var total int64
 	result := make(map[uint]int64, len(splitInputs))
 	for _, input := range splitInputs {
+		if input.Value < 0 {
+			return nil, errors.New("fixed amounts must not be negative")
+		}
 		cents := int64(math.Round(input.Value))
 		total += cents
 		result[input.UserID] = cents
