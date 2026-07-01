@@ -57,6 +57,18 @@ func main() {
 	config.InitAuth()
 	config.InitAnthropic()
 
+	// Refresh tokens are stored in Redis when available (REDIS_URL), so a
+	// stolen/rotated token can be revoked from any instance and survives
+	// restarts; otherwise they fall back to in-memory (local dev only — same
+	// trade-off as the scan rate limiter's in-memory fallback).
+	var refreshStore service.RefreshTokenStore
+	if rdb, ok := config.NewRedisClientFromEnv(); ok {
+		refreshStore = service.NewRedisRefreshTokenStore(rdb)
+	} else {
+		slog.Warn("REDIS_URL not set, refresh tokens are in-memory and will reset on every deploy")
+		refreshStore = service.NewInMemoryRefreshTokenStore()
+	}
+
 	// 1. Init Repositories
 	userRepo := repository.NewUserRepository(db)
 	groupRepo := repository.NewGroupRepository(db)
@@ -68,7 +80,7 @@ func main() {
 	groupService := service.NewGroupService(groupRepo, userRepo)
 	expenseService := service.NewExpenseService(expenseRepo, groupRepo)
 	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
-	authService := service.NewAuthService(userRepo)
+	authService := service.NewAuthService(userRepo, refreshStore)
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel)
 	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
 
@@ -121,6 +133,8 @@ func main() {
 	r.Route("/api/v1/auth", func(r chi.Router) {
 		r.Get("/google/login", authHandler.GoogleLogin)
 		r.Get("/google/callback", authHandler.GoogleCallback)
+		r.Post("/refresh", authHandler.Refresh)
+		r.Post("/logout", authHandler.Logout)
 	})
 
 	// API Routes (Protected by JWT)

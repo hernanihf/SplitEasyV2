@@ -66,7 +66,7 @@ const docTemplate = `{
         },
         "/auth/google/callback": {
             "get": {
-                "description": "Handles the callback from Google OAuth2, exchanges authorization code for a user JWT, then redirects to the frontend with the token in the URL fragment (#token=...). The fragment is never sent to the frontend server, so the JWT does not appear in access logs, CDN logs, or Referer headers.",
+                "description": "Handles the callback from Google OAuth2, exchanges authorization code for a session, then redirects to the frontend with the access and refresh tokens in the URL fragment (#access_token=...\u0026refresh_token=...). The fragment is never sent to the frontend server, so neither token appears in access logs, CDN logs, or Referer headers.",
                 "tags": [
                     "auth"
                 ],
@@ -89,7 +89,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "307": {
-                        "description": "Temporary Redirect to FRONTEND_REDIRECT_URL#token=..."
+                        "description": "Temporary Redirect to FRONTEND_REDIRECT_URL#access_token=...\u0026refresh_token=..."
                     },
                     "400": {
                         "description": "Bad Request",
@@ -116,6 +116,86 @@ const docTemplate = `{
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect to Google OAuth"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "description": "Revokes a refresh token so it can no longer be exchanged for a new session. Doesn't require a valid access token — a client whose access token has already expired still needs to be able to revoke its refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Log out",
+                "parameters": [
+                    {
+                        "description": "Refresh token to revoke",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Exchanges a valid, unused refresh token for a new access token and a new refresh token (the old refresh token stops working, whether or not this call succeeds).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh a session",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 }
             }
@@ -1344,6 +1424,22 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.LogoutRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RefreshRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.SettleDebtRequest": {
             "type": "object",
             "properties": {
@@ -1371,6 +1467,17 @@ const docTemplate = `{
                 "value": {
                     "type": "number",
                     "example": 50
+                }
+            }
+        },
+        "handler.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
                 }
             }
         }

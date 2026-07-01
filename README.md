@@ -89,7 +89,8 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
 
-# Frontend URL the user is redirected to after Google login, with the JWT in the URL fragment (#token=...)
+# Frontend URL the user is redirected to after Google login, with the access
+# and refresh tokens in the URL fragment (#access_token=...&refresh_token=...)
 FRONTEND_REDIRECT_URL=http://localhost:8081/auth/callback
 
 # Comma-separated list of origins allowed by CORS. Production must set this to
@@ -153,7 +154,9 @@ docker run -p 8080:8080 --env-file .env spliteasy
 
 *   `GET /ping` - Health check (returns database/application status).
 *   `GET /api/v1/auth/google/login` - Initiates Google OAuth2 login flow.
-*   `GET /api/v1/auth/google/callback` - Handles the Google OAuth2 callback, then redirects to `FRONTEND_REDIRECT_URL#token=<JWT>`.
+*   `GET /api/v1/auth/google/callback` - Handles the Google OAuth2 callback, then redirects to `FRONTEND_REDIRECT_URL#access_token=<JWT>&refresh_token=<TOKEN>`.
+*   `POST /api/v1/auth/refresh` - Exchanges a valid, unused refresh token for a new access token and a new (rotated) refresh token.
+*   `POST /api/v1/auth/logout` - Revokes a refresh token so it can no longer be exchanged.
 
 ### Protected Routes (Requires Header: `Authorization: Bearer <JWT_TOKEN>`)
 

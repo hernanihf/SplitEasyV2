@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"spliteasy/internal/config"
 )
 
 // ScanLimiter is satisfied by both ScanRateLimiter (in-memory) and
@@ -75,25 +75,13 @@ func NewScanRateLimiterFromEnv() ScanLimiter {
 	perHour := envInt("SCAN_RATE_PER_HOUR", 10)
 	burst := envInt("SCAN_RATE_BURST", 5)
 
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
+	rdb, ok := config.NewRedisClientFromEnv()
+	if !ok {
 		slog.Warn("REDIS_URL not set, scan rate limiter is in-memory and will reset on every deploy")
 		return NewScanRateLimiter(perHour, burst)
 	}
 
-	opts, err := redis.ParseURL(redisURL)
-	if err != nil {
-		slog.Error("REDIS_URL is invalid, falling back to the in-memory rate limiter", "error", err)
-		return NewScanRateLimiter(perHour, burst)
-	}
-	// The Limit middleware fails open on any Redis error, but the default
-	// client retries several times with backoff before giving up — during an
-	// outage that would make every scan request hang for seconds first.
-	// Tighten it so failing open actually happens quickly.
-	opts.DialTimeout = 2 * time.Second
-	opts.MaxRetries = 1
-
-	return NewRedisScanRateLimiter(redis.NewClient(opts), perHour, burst)
+	return NewRedisScanRateLimiter(rdb, perHour, burst)
 }
 
 func envInt(key string, fallback int) int {

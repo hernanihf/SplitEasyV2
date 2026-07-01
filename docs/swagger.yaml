@@ -285,6 +285,16 @@ definitions:
         example: a1b2c3d4...
         type: string
     type: object
+  handler.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handler.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
   handler.SettleDebtRequest:
     properties:
       amount:
@@ -305,6 +315,13 @@ definitions:
       value:
         example: 50
         type: number
+    type: object
+  handler.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -349,9 +366,10 @@ paths:
   /auth/google/callback:
     get:
       description: Handles the callback from Google OAuth2, exchanges authorization
-        code for a user JWT, then redirects to the frontend with the token in the
-        URL fragment (#token=...). The fragment is never sent to the frontend server,
-        so the JWT does not appear in access logs, CDN logs, or Referer headers.
+        code for a session, then redirects to the frontend with the access and refresh
+        tokens in the URL fragment (#access_token=...&refresh_token=...). The fragment
+        is never sent to the frontend server, so neither token appears in access logs,
+        CDN logs, or Referer headers.
       parameters:
       - description: OAuth state validation
         in: query
@@ -365,7 +383,7 @@ paths:
         type: string
       responses:
         "307":
-          description: Temporary Redirect to FRONTEND_REDIRECT_URL#token=...
+          description: Temporary Redirect to FRONTEND_REDIRECT_URL#access_token=...&refresh_token=...
         "400":
           description: Bad Request
           schema:
@@ -384,6 +402,62 @@ paths:
         "307":
           description: Temporary Redirect to Google OAuth
       summary: Redirect to Google Login URL
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes a refresh token so it can no longer be exchanged for a
+        new session. Doesn't require a valid access token — a client whose access
+        token has already expired still needs to be able to revoke its refresh token.
+      parameters:
+      - description: Refresh token to revoke
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LogoutRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+      summary: Log out
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges a valid, unused refresh token for a new access token
+        and a new refresh token (the old refresh token stops working, whether or not
+        this call succeeds).
+      parameters:
+      - description: Refresh token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      summary: Refresh a session
       tags:
       - auth
   /expenses:
