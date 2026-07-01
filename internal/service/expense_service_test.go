@@ -417,3 +417,29 @@ func TestDeleteExpense_RejectsUnknownExpense(t *testing.T) {
 		t.Errorf("expected ErrExpenseNotFound, got %v", err)
 	}
 }
+
+func TestGetExpense_ReturnsAnyGroupMemberTheExpense(t *testing.T) {
+	// No payer/participant restriction here — GetExpense is a plain read,
+	// unlike Update/Delete.
+	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	got, err := svc.GetExpense(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != 5 {
+		t.Errorf("expected expense id 5, got %d", got.ID)
+	}
+}
+
+func TestGetExpense_RejectsUnknownExpense(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, _ := newTestExpenseService(members)
+
+	_, err := svc.GetExpense(context.Background(), 999)
+	if !errors.Is(err, ErrExpenseNotFound) {
+		t.Errorf("expected ErrExpenseNotFound, got %v", err)
+	}
+}

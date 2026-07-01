@@ -17,6 +17,12 @@ definitions:
         type: integer
       group_name:
         type: string
+      id:
+        description: |-
+          ID is the underlying expense's or settlement's id (whichever Type
+          says this event is), for opening the same detail view group history
+          rows link to.
+        type: integer
       title:
         type: string
       type:
@@ -571,6 +577,48 @@ paths:
       security:
       - JWT: []
       summary: Delete an expense
+      tags:
+      - expenses
+    get:
+      description: Retrieves a single expense by id. Any member of the expense's group
+        may view it — unlike edit/delete, this isn't limited to the payer or split
+        participants.
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Expense'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get an expense
       tags:
       - expenses
     put:

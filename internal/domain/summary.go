@@ -28,6 +28,10 @@ type HomeSummary struct {
 
 // ActivityEvent is a single entry in the cross-group activity feed.
 type ActivityEvent struct {
+	// ID is the underlying expense's or settlement's id (whichever Type
+	// says this event is), for opening the same detail view group history
+	// rows link to.
+	ID         uint      `json:"id"`
 	Type       string    `json:"type"` // "expense" | "settlement"
 	GroupID    uint      `json:"group_id"`
 	GroupName  string    `json:"group_name"`

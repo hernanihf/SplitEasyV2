@@ -264,6 +264,45 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetExpense godoc
+// @Summary      Get an expense
+// @Description  Retrieves a single expense by id. Any member of the expense's group may view it — unlike edit/delete, this isn't limited to the payer or split participants.
+// @Tags         expenses
+// @Produce      json
+// @Param        id   path      int  true  "Expense ID"
+// @Success      200  {object}  domain.Expense
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /expenses/{id} [get]
+func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	expenseID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	expense, err := h.expenseService.GetExpense(r.Context(), uint(expenseID))
+	if err != nil {
+		if errors.Is(err, service.ErrExpenseNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			internalError(w, "failed to get expense", err)
+		}
+		return
+	}
+
+	if !authorizeGroupAccess(w, r, h.groupService, expense.GroupID) {
+		return
+	}
+
+	writeJSON(w, http.StatusOK, expense)
+}
+
 // GetGroupExpenses godoc
 // @Summary      Get expenses of a group
 // @Description  Retrieves list of expenses for a specific group.

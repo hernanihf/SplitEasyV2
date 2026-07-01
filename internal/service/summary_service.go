@@ -117,6 +117,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 				}
 			}
 			events = append(events, domain.ActivityEvent{
+				ID:         e.ID,
 				Type:       "expense",
 				GroupID:    g.ID,
 				GroupName:  g.Name,
@@ -136,6 +137,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 		}
 		for _, st := range settlements {
 			events = append(events, domain.ActivityEvent{
+				ID:         st.ID,
 				Type:       "settlement",
 				GroupID:    g.ID,
 				GroupName:  g.Name,

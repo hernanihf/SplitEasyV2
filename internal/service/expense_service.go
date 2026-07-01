@@ -60,6 +60,11 @@ type ExpenseService interface {
 	UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
 	// DeleteExpense soft-deletes an expense. Same authorization as Update.
 	DeleteExpense(ctx context.Context, expenseID, callerID uint) error
+	// GetExpense fetches a single expense by id. Unlike Update/Delete, there's
+	// no payer-or-participant check here — the caller only needs to be a
+	// member of the expense's group (enforced by the handler, which needs
+	// the expense's GroupID from this call before it can check that).
+	GetExpense(ctx context.Context, expenseID uint) (*domain.Expense, error)
 	GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error)
 }
 
@@ -221,6 +226,14 @@ func (s *expenseService) DeleteExpense(ctx context.Context, expenseID, callerID 
 		return ErrNotExpenseParty
 	}
 	return s.expenseRepo.Delete(ctx, expenseID)
+}
+
+func (s *expenseService) GetExpense(ctx context.Context, expenseID uint) (*domain.Expense, error) {
+	expense, err := s.expenseRepo.GetByID(ctx, expenseID)
+	if err != nil {
+		return nil, ErrExpenseNotFound
+	}
+	return expense, nil
 }
 
 // calculateSplitAmounts resolves how many cents each member owes for the given

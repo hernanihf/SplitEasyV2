@@ -20,8 +20,10 @@ type fakeExpenseService struct {
 
 	updateErr        error
 	deleteErr        error
+	getErr           error
 	updateCalledWith uint
 	deleteCalledWith uint
+	getCalledWith    uint
 }
 
 func (f *fakeExpenseService) AddExpense(_ context.Context, groupID, paidByID uint, _ string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
@@ -40,6 +42,14 @@ func (f *fakeExpenseService) UpdateExpense(_ context.Context, expenseID, _, paid
 func (f *fakeExpenseService) DeleteExpense(_ context.Context, expenseID, _ uint) error {
 	f.deleteCalledWith = expenseID
 	return f.deleteErr
+}
+
+func (f *fakeExpenseService) GetExpense(_ context.Context, expenseID uint) (*domain.Expense, error) {
+	f.getCalledWith = expenseID
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return &domain.Expense{ID: expenseID}, nil
 }
 
 func (f *fakeExpenseService) GetGroupExpenses(_ context.Context, _ uint) ([]domain.Expense, error) {
@@ -198,5 +208,37 @@ func TestDeleteExpense_MapsNotAPartyTo403(t *testing.T) {
 	rec := deleteExpenseRequest(t, fake, "7", 1)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func getExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID string, authUserID uint) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/expenses/"+expenseID, nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(authUserID)))
+	req = withURLParam(req, "id", expenseID)
+
+	rec := httptest.NewRecorder()
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{})
+	h.GetExpense(rec, req)
+	return rec
+}
+
+func TestGetExpense_Success(t *testing.T) {
+	fake := &fakeExpenseService{}
+	rec := getExpenseRequest(t, fake, "11", 1)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fake.getCalledWith != 11 {
+		t.Fatalf("expected the service to be called with expense id 11, got %d", fake.getCalledWith)
+	}
+}
+
+func TestGetExpense_MapsNotFoundTo404(t *testing.T) {
+	fake := &fakeExpenseService{getErr: service.ErrExpenseNotFound}
+	rec := getExpenseRequest(t, fake, "11", 1)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

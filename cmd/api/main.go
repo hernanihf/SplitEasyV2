@@ -175,6 +175,7 @@ func main() {
 
 			// Expenses
 			r.Post("/expenses", expenseHandler.AddExpense)
+			r.Get("/expenses/{id}", expenseHandler.GetExpense)
 			r.Put("/expenses/{id}", expenseHandler.UpdateExpense)
 			r.Delete("/expenses/{id}", expenseHandler.DeleteExpense)
 			r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
