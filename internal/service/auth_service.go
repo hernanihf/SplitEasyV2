@@ -27,6 +27,11 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 	return &authService{userRepo}
 }
 
+// googleUserInfoClient has an explicit timeout so a slow/hung response from
+// Google can't block the calling goroutine indefinitely (http.DefaultClient,
+// which the previous code used implicitly via http.Get, has none).
+var googleUserInfoClient = &http.Client{Timeout: 10 * time.Second}
+
 func (s *authService) GetGoogleLoginURL(state string) string {
 	return config.GoogleOAuthConfig.AuthCodeURL(state)
 }
@@ -44,8 +49,15 @@ func (s *authService) HandleGoogleCallback(ctx context.Context, code string) (st
 		return "", errors.New("code exchange failed: " + err.Error())
 	}
 
-	// 2. Get user info
-	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	// 2. Get user info. The access token goes in the Authorization header, not
+	// a query param, so it never lands in server/proxy access logs.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	if err != nil {
+		return "", errors.New("failed building userinfo request: " + err.Error())
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+
+	response, err := googleUserInfoClient.Do(req)
 	if err != nil {
 		return "", errors.New("failed getting user info: " + err.Error())
 	}
