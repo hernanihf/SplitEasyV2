@@ -16,8 +16,25 @@ func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Ex
 	return nil
 }
 
+func (f *fakeExpenseRepo) UpdateWithSplits(_ context.Context, _ *domain.Expense, _ []domain.ExpenseSplit, _ []domain.ExpenseItem) error {
+	return nil
+}
+
+func (f *fakeExpenseRepo) GetByID(_ context.Context, id uint) (*domain.Expense, error) {
+	for _, e := range f.expenses {
+		if e.ID == id {
+			return &e, nil
+		}
+	}
+	return nil, errExpected
+}
+
 func (f *fakeExpenseRepo) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return f.expenses, nil
+}
+
+func (f *fakeExpenseRepo) Delete(_ context.Context, _ uint) error {
+	return nil
 }
 
 type fakeGroupRepo struct {
@@ -67,6 +84,7 @@ func (f *fakeGroupRepo) SetInviteTokenIfEmpty(_ context.Context, groupID uint, t
 type fakeSettlementRepo struct {
 	settlements []domain.Settlement
 	created     []*domain.Settlement
+	deletedID   uint
 }
 
 func (f *fakeSettlementRepo) Create(_ context.Context, settlement *domain.Settlement) error {
@@ -75,8 +93,22 @@ func (f *fakeSettlementRepo) Create(_ context.Context, settlement *domain.Settle
 	return nil
 }
 
+func (f *fakeSettlementRepo) GetByID(_ context.Context, id uint) (*domain.Settlement, error) {
+	for _, s := range f.settlements {
+		if s.ID == id {
+			return &s, nil
+		}
+	}
+	return nil, errExpected
+}
+
 func (f *fakeSettlementRepo) GetByGroupID(_ context.Context, groupID uint) ([]domain.Settlement, error) {
 	return f.settlements, nil
+}
+
+func (f *fakeSettlementRepo) Delete(_ context.Context, id uint) error {
+	f.deletedID = id
+	return nil
 }
 
 func newTestBalanceService(expenses []domain.Expense, settlements []domain.Settlement) (BalanceService, *fakeSettlementRepo) {
@@ -283,5 +315,48 @@ func TestSettleDebt_GroupNotFound(t *testing.T) {
 
 	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, 30); err == nil {
 		t.Error("expected error when group does not exist")
+	}
+}
+
+func TestDeleteSettlement_AllowsFromUserToDelete(t *testing.T) {
+	settlements := []domain.Settlement{{ID: 9, GroupID: 1, FromUserID: 2, ToUserID: 1, Amount: 30}}
+	svc, repo := newTestBalanceService(nil, settlements)
+
+	if err := svc.DeleteSettlement(context.Background(), 9, 2); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.deletedID != 9 {
+		t.Errorf("expected Delete to be called with id 9, got %d", repo.deletedID)
+	}
+}
+
+func TestDeleteSettlement_AllowsToUserToDelete(t *testing.T) {
+	settlements := []domain.Settlement{{ID: 9, GroupID: 1, FromUserID: 2, ToUserID: 1, Amount: 30}}
+	svc, _ := newTestBalanceService(nil, settlements)
+
+	if err := svc.DeleteSettlement(context.Background(), 9, 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeleteSettlement_RejectsBystander(t *testing.T) {
+	settlements := []domain.Settlement{{ID: 9, GroupID: 1, FromUserID: 2, ToUserID: 1, Amount: 30}}
+	svc, repo := newTestBalanceService(nil, settlements)
+
+	err := svc.DeleteSettlement(context.Background(), 9, 3)
+	if !errors.Is(err, ErrNotSettlementParty) {
+		t.Errorf("expected ErrNotSettlementParty, got %v", err)
+	}
+	if repo.deletedID != 0 {
+		t.Error("expected Delete not to be called")
+	}
+}
+
+func TestDeleteSettlement_RejectsUnknownSettlement(t *testing.T) {
+	svc, _ := newTestBalanceService(nil, nil)
+
+	err := svc.DeleteSettlement(context.Background(), 999, 1)
+	if !errors.Is(err, ErrSettlementNotFound) {
+		t.Errorf("expected ErrSettlementNotFound, got %v", err)
 	}
 }

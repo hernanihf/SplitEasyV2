@@ -10,22 +10,31 @@ import (
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
+	"spliteasy/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )
 
-type fakeBalanceService struct{}
+type fakeBalanceService struct {
+	deleteSettlementErr        error
+	deleteSettlementCalledWith uint
+}
 
-func (fakeBalanceService) CalculateGroupDebts(_ context.Context, _ uint) ([]domain.Debt, error) {
+func (*fakeBalanceService) CalculateGroupDebts(_ context.Context, _ uint) ([]domain.Debt, error) {
 	return nil, nil
 }
 
-func (fakeBalanceService) SettleDebt(_ context.Context, _, from, to uint, amount int64) (*domain.Settlement, error) {
+func (*fakeBalanceService) SettleDebt(_ context.Context, _, from, to uint, amount int64) (*domain.Settlement, error) {
 	return &domain.Settlement{FromUserID: from, ToUserID: to, Amount: amount}, nil
 }
 
-func (fakeBalanceService) ListSettlements(_ context.Context, _ uint) ([]domain.Settlement, error) {
+func (*fakeBalanceService) ListSettlements(_ context.Context, _ uint) ([]domain.Settlement, error) {
 	return nil, nil
+}
+
+func (f *fakeBalanceService) DeleteSettlement(_ context.Context, settlementID, _ uint) error {
+	f.deleteSettlementCalledWith = settlementID
+	return f.deleteSettlementErr
 }
 
 type fakeGroupServiceForBalance struct{}
@@ -73,7 +82,7 @@ func settleDebtRequest(t *testing.T, authUserID uint, body SettleDebtRequest) *h
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(fakeBalanceService{}, fakeGroupServiceForBalance{})
+	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{})
 	h.SettleDebt(rec, req)
 	return rec
 }
@@ -94,6 +103,49 @@ func TestSettleDebt_AllowsPayeeToRecordIt(t *testing.T) {
 
 func TestSettleDebt_RejectsBystander(t *testing.T) {
 	rec := settleDebtRequest(t, 3, SettleDebtRequest{FromUserID: 2, ToUserID: 1, Amount: 500})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func deleteSettlementRequest(t *testing.T, fake *fakeBalanceService, settlementID string, authUserID uint) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/settlements/"+settlementID, nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(authUserID)))
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", settlementID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rec := httptest.NewRecorder()
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{})
+	h.DeleteSettlement(rec, req)
+	return rec
+}
+
+func TestDeleteSettlement_Success(t *testing.T) {
+	fake := &fakeBalanceService{}
+	rec := deleteSettlementRequest(t, fake, "9", 1)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fake.deleteSettlementCalledWith != 9 {
+		t.Fatalf("expected the service to be called with settlement id 9, got %d", fake.deleteSettlementCalledWith)
+	}
+}
+
+func TestDeleteSettlement_MapsNotFoundTo404(t *testing.T) {
+	fake := &fakeBalanceService{deleteSettlementErr: service.ErrSettlementNotFound}
+	rec := deleteSettlementRequest(t, fake, "9", 1)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteSettlement_MapsNotAPartyTo403(t *testing.T) {
+	fake := &fakeBalanceService{deleteSettlementErr: service.ErrNotSettlementParty}
+	rec := deleteSettlementRequest(t, fake, "9", 1)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
 	}

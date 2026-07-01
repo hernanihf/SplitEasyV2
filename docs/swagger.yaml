@@ -323,6 +323,34 @@ definitions:
       refresh_token:
         type: string
     type: object
+  handler.UpdateExpenseRequest:
+    properties:
+      amount:
+        example: 12050
+        type: integer
+      description:
+        example: Dinner
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/handler.ItemInputRequest'
+        type: array
+      paid_by_id:
+        example: 1
+        type: integer
+      split_method:
+        enum:
+        - equal
+        - percentage
+        - fixed
+        - shares
+        example: equal
+        type: string
+      splits:
+        items:
+          $ref: '#/definitions/handler.SplitInputRequest'
+        type: array
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -505,6 +533,89 @@ paths:
       security:
       - JWT: []
       summary: Add an expense
+      tags:
+      - expenses
+  /expenses/{id}:
+    delete:
+      description: Soft-deletes an expense. Only the payer or a split participant
+        may delete it.
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Delete an expense
+      tags:
+      - expenses
+    put:
+      consumes:
+      - application/json
+      description: Replaces an expense's payer, description, amount, split, and items.
+        Only the current payer or a current split participant may edit it.
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated expense info
+        in: body
+        name: expense
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Expense'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Edit an expense
       tags:
       - expenses
   /groups:
@@ -920,6 +1031,44 @@ paths:
       summary: Scan a receipt image or PDF
       tags:
       - expenses
+  /settlements/{id}:
+    delete:
+      description: Soft-deletes a recorded payment. Only the settlement's from_user_id
+        or to_user_id may delete it — not just any group member.
+      parameters:
+      - description: Settlement ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Delete a settlement
+      tags:
+      - groups
   /users/me:
     get:
       description: Returns the profile of the currently authenticated user.

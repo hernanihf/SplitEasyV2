@@ -2,6 +2,8 @@ package domain
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Expense struct {
@@ -12,6 +14,11 @@ type Expense struct {
 	Amount      int64     `gorm:"not null" json:"amount"` // cents
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+
+	// A deleted expense is excluded from every normal query (including
+	// balance calculations) by GORM's default scope, but the row — and the
+	// fact that it existed — is kept for dispute resolution.
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
 	PaidBy User           `gorm:"foreignKey:PaidByID" json:"paid_by"`

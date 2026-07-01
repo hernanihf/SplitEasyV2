@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"spliteasy/internal/domain"
@@ -11,6 +12,16 @@ type fakeExpenseRepoForCreate struct {
 	createdExpense *domain.Expense
 	createdSplits  []domain.ExpenseSplit
 	createdItems   []domain.ExpenseItem
+
+	// existing, when set, is what GetByID returns — used to test
+	// UpdateExpense/DeleteExpense against a pre-existing expense.
+	existing *domain.Expense
+
+	updatedExpense *domain.Expense
+	updatedSplits  []domain.ExpenseSplit
+	updatedItems   []domain.ExpenseItem
+
+	deletedID uint
 }
 
 func (f *fakeExpenseRepoForCreate) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, items []domain.ExpenseItem) error {
@@ -21,8 +32,27 @@ func (f *fakeExpenseRepoForCreate) CreateWithSplits(_ context.Context, expense *
 	return nil
 }
 
+func (f *fakeExpenseRepoForCreate) UpdateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, items []domain.ExpenseItem) error {
+	f.updatedExpense = expense
+	f.updatedSplits = splits
+	f.updatedItems = items
+	return nil
+}
+
+func (f *fakeExpenseRepoForCreate) GetByID(_ context.Context, id uint) (*domain.Expense, error) {
+	if f.existing == nil || f.existing.ID != id {
+		return nil, errExpected
+	}
+	return f.existing, nil
+}
+
 func (f *fakeExpenseRepoForCreate) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return nil, nil
+}
+
+func (f *fakeExpenseRepoForCreate) Delete(_ context.Context, id uint) error {
+	f.deletedID = id
+	return nil
 }
 
 func newTestExpenseService(members []domain.User) (ExpenseService, *fakeExpenseRepoForCreate) {
@@ -267,5 +297,123 @@ func TestAddExpense_RejectsNonPositiveAmount(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", 0, SplitEqual, nil, nil)
 	if err == nil {
 		t.Error("expected error for non-positive amount")
+	}
+}
+
+func existingTwoPersonExpense() *domain.Expense {
+	return &domain.Expense{
+		ID: 5, GroupID: 1, PaidByID: 1, Amount: 1000,
+		Splits: []domain.ExpenseSplit{{UserID: 1, Amount: 500}, {UserID: 2, Amount: 500}},
+	}
+}
+
+func TestUpdateExpense_AllowsPayerToEdit(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	updated, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner (edited)", 2000, SplitEqual, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Amount != 2000 || updated.Description != "Dinner (edited)" {
+		t.Errorf("unexpected updated expense: %+v", updated)
+	}
+	splits := splitsByUser(repo.updatedSplits)
+	if splits[1] != 1000 || splits[2] != 1000 {
+		t.Errorf("expected an equal split of the new amount, got %+v", splits)
+	}
+}
+
+func TestUpdateExpense_AllowsSplitParticipantToEdit(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	// Caller (2) didn't pay, but is one of the split participants.
+	if _, err := svc.UpdateExpense(context.Background(), 5, 2, 1, "Dinner", 1000, SplitEqual, nil, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpdateExpense_RejectsBystander(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	_, err := svc.UpdateExpense(context.Background(), 5, 3, 1, "Dinner", 1000, SplitEqual, nil, nil)
+	if !errors.Is(err, ErrNotExpenseParty) {
+		t.Errorf("expected ErrNotExpenseParty, got %v", err)
+	}
+}
+
+func TestUpdateExpense_RejectsUnknownExpense(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, _ := newTestExpenseService(members)
+
+	_, err := svc.UpdateExpense(context.Background(), 999, 1, 1, "Dinner", 1000, SplitEqual, nil, nil)
+	if !errors.Is(err, ErrExpenseNotFound) {
+		t.Errorf("expected ErrExpenseNotFound, got %v", err)
+	}
+}
+
+func TestUpdateExpense_StillValidatesSplits(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	_, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", 100, SplitPercentage, []SplitInput{
+		{UserID: 1, Value: -900},
+		{UserID: 2, Value: 1000},
+	}, nil)
+	if err == nil {
+		t.Error("expected the same negative-percentage validation as AddExpense on update")
+	}
+}
+
+func TestDeleteExpense_AllowsPayerToDelete(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	if err := svc.DeleteExpense(context.Background(), 5, 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.deletedID != 5 {
+		t.Errorf("expected Delete to be called with id 5, got %d", repo.deletedID)
+	}
+}
+
+func TestDeleteExpense_AllowsSplitParticipantToDelete(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	if err := svc.DeleteExpense(context.Background(), 5, 2); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeleteExpense_RejectsBystander(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
+	svc, repo := newTestExpenseService(members)
+	repo.existing = existingTwoPersonExpense()
+
+	err := svc.DeleteExpense(context.Background(), 5, 3)
+	if !errors.Is(err, ErrNotExpenseParty) {
+		t.Errorf("expected ErrNotExpenseParty, got %v", err)
+	}
+	if repo.deletedID != 0 {
+		t.Error("expected Delete not to be called")
+	}
+}
+
+func TestDeleteExpense_RejectsUnknownExpense(t *testing.T) {
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, _ := newTestExpenseService(members)
+
+	err := svc.DeleteExpense(context.Background(), 999, 1)
+	if !errors.Is(err, ErrExpenseNotFound) {
+		t.Errorf("expected ErrExpenseNotFound, got %v", err)
 	}
 }

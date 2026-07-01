@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
@@ -149,4 +150,43 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, settlement)
+}
+
+// DeleteSettlement godoc
+// @Summary      Delete a settlement
+// @Description  Soft-deletes a recorded payment. Only the settlement's from_user_id or to_user_id may delete it — not just any group member.
+// @Tags         groups
+// @Param        id   path  int  true  "Settlement ID"
+// @Success      204  "No Content"
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /settlements/{id} [delete]
+func (h *BalanceHandler) DeleteSettlement(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	settlementID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	switch err := h.balanceService.DeleteSettlement(r.Context(), uint(settlementID), userID); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, service.ErrSettlementNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, service.ErrNotSettlementParty):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	default:
+		internalError(w, "failed to delete settlement", err)
+	}
 }

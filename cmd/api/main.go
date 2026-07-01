@@ -171,9 +171,12 @@ func main() {
 			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
 			r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
 			r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)
+			r.Delete("/settlements/{id}", balanceHandler.DeleteSettlement)
 
 			// Expenses
 			r.Post("/expenses", expenseHandler.AddExpense)
+			r.Put("/expenses/{id}", expenseHandler.UpdateExpense)
+			r.Delete("/expenses/{id}", expenseHandler.DeleteExpense)
 			r.Get("/groups/{groupId}/expenses", expenseHandler.GetGroupExpenses)
 		})
 

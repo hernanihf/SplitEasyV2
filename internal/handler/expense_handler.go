@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
@@ -133,6 +134,134 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, expense)
+}
+
+type UpdateExpenseRequest struct {
+	PaidByID    uint                `json:"paid_by_id" example:"1"`
+	Description string              `json:"description" example:"Dinner"`
+	Amount      int64               `json:"amount" example:"12050"`
+	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
+	Splits      []SplitInputRequest `json:"splits"`
+	Items       []ItemInputRequest  `json:"items"`
+}
+
+// UpdateExpense godoc
+// @Summary      Edit an expense
+// @Description  Replaces an expense's payer, description, amount, split, and items. Only the current payer or a current split participant may edit it.
+// @Tags         expenses
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                   true  "Expense ID"
+// @Param        expense  body      UpdateExpenseRequest  true  "Updated expense info"
+// @Success      200      {object}  domain.Expense
+// @Failure      400      {string}  string  "Bad Request"
+// @Failure      401      {string}  string  "Unauthorized"
+// @Failure      403      {string}  string  "Forbidden"
+// @Failure      404      {string}  string  "Not Found"
+// @Security     JWT
+// @Router       /expenses/{id} [put]
+func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	expenseID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	var req UpdateExpenseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validateMaxLen("description", req.Description, maxDescriptionLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	for _, it := range req.Items {
+		if err := validateMaxLen("item description", it.Description, maxDescriptionLen); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	splitInputs := make([]service.SplitInput, len(req.Splits))
+	for i, s := range req.Splits {
+		splitInputs[i] = service.SplitInput{UserID: s.UserID, Value: s.Value}
+	}
+	items := make([]service.ItemInput, len(req.Items))
+	for i, it := range req.Items {
+		items[i] = service.ItemInput{Description: it.Description, Amount: it.Amount, UserIDs: it.UserIDs}
+	}
+
+	expense, err := h.expenseService.UpdateExpense(
+		r.Context(),
+		uint(expenseID),
+		userID,
+		req.PaidByID,
+		req.Description,
+		req.Amount,
+		service.SplitMethod(req.SplitMethod),
+		splitInputs,
+		items,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrExpenseNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, service.ErrNotExpenseParty):
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, expense)
+}
+
+// DeleteExpense godoc
+// @Summary      Delete an expense
+// @Description  Soft-deletes an expense. Only the payer or a split participant may delete it.
+// @Tags         expenses
+// @Param        id   path  int  true  "Expense ID"
+// @Success      204  "No Content"
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /expenses/{id} [delete]
+func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	expenseID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	switch err := h.expenseService.DeleteExpense(r.Context(), uint(expenseID), userID); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, service.ErrExpenseNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, service.ErrNotExpenseParty):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	default:
+		internalError(w, "failed to delete expense", err)
+	}
 }
 
 // GetGroupExpenses godoc

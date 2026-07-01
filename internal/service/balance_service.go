@@ -8,10 +8,19 @@ import (
 	"spliteasy/internal/repository"
 )
 
+// Sentinel errors that handlers map to HTTP status codes via errors.Is.
+var (
+	ErrSettlementNotFound = errors.New("settlement not found")
+	ErrNotSettlementParty = errors.New("you must be a party to the settlement")
+)
+
 type BalanceService interface {
 	CalculateGroupDebts(ctx context.Context, groupID uint) ([]domain.Debt, error)
 	SettleDebt(ctx context.Context, groupID, fromUserID, toUserID uint, amount int64) (*domain.Settlement, error)
 	ListSettlements(ctx context.Context, groupID uint) ([]domain.Settlement, error)
+	// DeleteSettlement soft-deletes a settlement. callerID must be the
+	// settlement's from_user_id or to_user_id.
+	DeleteSettlement(ctx context.Context, settlementID, callerID uint) error
 }
 
 type balanceService struct {
@@ -186,4 +195,15 @@ func (s *balanceService) ListSettlements(ctx context.Context, groupID uint) ([]d
 		settlements = []domain.Settlement{}
 	}
 	return settlements, nil
+}
+
+func (s *balanceService) DeleteSettlement(ctx context.Context, settlementID, callerID uint) error {
+	settlement, err := s.settlementRepo.GetByID(ctx, settlementID)
+	if err != nil {
+		return ErrSettlementNotFound
+	}
+	if settlement.FromUserID != callerID && settlement.ToUserID != callerID {
+		return ErrNotSettlementParty
+	}
+	return s.settlementRepo.Delete(ctx, settlementID)
 }
