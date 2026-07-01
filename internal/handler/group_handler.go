@@ -73,6 +73,14 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := validateMaxLen("name", req.Name, maxNameLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validateMaxLen("emoji", req.Emoji, maxEmojiLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	group, err := h.groupService.CreateGroup(r.Context(), req.Name, req.Emoji, userID)
 	if err != nil {
@@ -227,6 +235,10 @@ func (h *GroupHandler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 
 	var req JoinGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validateMaxLen("token", req.Token, maxTokenLen); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

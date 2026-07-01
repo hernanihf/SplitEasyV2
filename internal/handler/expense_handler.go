@@ -60,6 +60,16 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := validateMaxLen("description", req.Description, maxDescriptionLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	for _, it := range req.Items {
+		if err := validateMaxLen("item description", it.Description, maxDescriptionLen); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	if !authorizeGroupAccess(w, r, h.groupService, req.GroupID) {
 		return
