@@ -190,7 +190,18 @@ func TestSettleDebt_RejectsSameUser(t *testing.T) {
 }
 
 func TestSettleDebt_PersistsSettlement(t *testing.T) {
-	svc, settlementRepo := newTestBalanceService(nil, nil)
+	// User 1 paid 30, split so user 2 owes the full 30 back.
+	expenses := []domain.Expense{
+		{
+			PaidByID: 1,
+			Amount:   30,
+			Splits: []domain.ExpenseSplit{
+				{UserID: 1, Amount: 0},
+				{UserID: 2, Amount: 30},
+			},
+		},
+	}
+	svc, settlementRepo := newTestBalanceService(expenses, nil)
 
 	settlement, err := svc.SettleDebt(context.Background(), 1, 2, 1, 30)
 	if err != nil {
@@ -201,6 +212,52 @@ func TestSettleDebt_PersistsSettlement(t *testing.T) {
 	}
 	if len(settlementRepo.created) != 1 {
 		t.Fatalf("expected settlement to be persisted, got %d", len(settlementRepo.created))
+	}
+}
+
+func TestSettleDebt_RejectsAmountExceedingWhatIsOwed(t *testing.T) {
+	// User 2 owes user 1 exactly 30 — trying to settle 31 should fail rather
+	// than being recorded and skewing the ledger in the settling party's favor.
+	expenses := []domain.Expense{
+		{
+			PaidByID: 1,
+			Amount:   30,
+			Splits: []domain.ExpenseSplit{
+				{UserID: 1, Amount: 0},
+				{UserID: 2, Amount: 30},
+			},
+		},
+	}
+	svc, settlementRepo := newTestBalanceService(expenses, nil)
+
+	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, 31); err == nil {
+		t.Error("expected error when the settlement amount exceeds what is owed")
+	}
+	if len(settlementRepo.created) != 0 {
+		t.Errorf("expected no settlement to be persisted, got %d", len(settlementRepo.created))
+	}
+}
+
+func TestSettleDebt_RejectsWhenNothingIsOwedInThatDirection(t *testing.T) {
+	// User 1 owes user 2, not the other way around — settling 2->1 shouldn't
+	// be possible just because the two are members with some balance.
+	expenses := []domain.Expense{
+		{
+			PaidByID: 2,
+			Amount:   30,
+			Splits: []domain.ExpenseSplit{
+				{UserID: 1, Amount: 30},
+				{UserID: 2, Amount: 0},
+			},
+		},
+	}
+	svc, settlementRepo := newTestBalanceService(expenses, nil)
+
+	if _, err := svc.SettleDebt(context.Background(), 1, 2, 1, 10); err == nil {
+		t.Error("expected error when nothing is owed from_user_id -> to_user_id")
+	}
+	if len(settlementRepo.created) != 0 {
+		t.Errorf("expected no settlement to be persisted, got %d", len(settlementRepo.created))
 	}
 }
 

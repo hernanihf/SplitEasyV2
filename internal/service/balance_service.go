@@ -141,6 +141,26 @@ func (s *balanceService) SettleDebt(ctx context.Context, groupID, fromUserID, to
 		return nil, errors.New("both users must be members of the group")
 	}
 
+	// Cap the settlement at what's actually owed in this direction right now
+	// — the same figure the Balances tab shows. Without this, a party to the
+	// debt (the only people who can call this at all, per the check above)
+	// could log an arbitrarily large "payment" and skew the ledger in their
+	// own favor rather than just recording a real payment.
+	debts, err := s.CalculateGroupDebts(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	var owed int64
+	for _, d := range debts {
+		if d.FromUserID == fromUserID && d.ToUserID == toUserID {
+			owed = d.Amount
+			break
+		}
+	}
+	if amount > owed {
+		return nil, errors.New("settlement amount exceeds what is currently owed")
+	}
+
 	settlement := &domain.Settlement{
 		GroupID:    groupID,
 		FromUserID: fromUserID,
