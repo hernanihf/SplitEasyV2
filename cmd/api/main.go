@@ -49,15 +49,19 @@ func main() {
 	}
 
 	// Initialize Database and Auth Configurations
-	config.ConnectDB()
+	db, err := config.ConnectDB()
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
 	config.InitAuth()
 	config.InitAnthropic()
 
 	// 1. Init Repositories
-	userRepo := repository.NewUserRepository(config.DB)
-	groupRepo := repository.NewGroupRepository(config.DB)
-	expenseRepo := repository.NewExpenseRepository(config.DB)
-	settlementRepo := repository.NewSettlementRepository(config.DB)
+	userRepo := repository.NewUserRepository(db)
+	groupRepo := repository.NewGroupRepository(db)
+	expenseRepo := repository.NewExpenseRepository(db)
+	settlementRepo := repository.NewSettlementRepository(db)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)

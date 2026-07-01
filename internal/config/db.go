@@ -9,10 +9,11 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
-
-// ConnectDB initializes the database connection
-func ConnectDB() {
+// ConnectDB opens the database connection and applies pending migrations.
+// It returns the *gorm.DB rather than storing it in a package variable, so
+// callers wire it through dependency injection (as the repositories already
+// do) instead of every package being able to reach into a global.
+func ConnectDB() (*gorm.DB, error) {
 	host := getEnv("DB_HOST", "localhost")
 	port := getEnv("DB_PORT", "5432")
 	user := getEnv("DB_USER", "postgres")
@@ -25,24 +26,22 @@ func ConnectDB() {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
 		host, user, password, dbname, port, sslmode)
 
-	var err error
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		slog.Error("failed to connect to database", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	slog.Info("connected to PostgreSQL database")
 
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
-		slog.Error("failed to get underlying sql.DB", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 	if err := RunMigrations(sqlDB); err != nil {
-		slog.Error("failed to run database migrations", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to run database migrations: %w", err)
 	}
+
+	return db, nil
 }
 
 // getEnv gets an environment variable or returns a fallback
