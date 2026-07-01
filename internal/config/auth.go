@@ -26,7 +26,7 @@ func InitAuth() {
 		Endpoint: google.Endpoint,
 	}
 
-	JWTSecret = []byte(getEnv("JWT_SECRET", "super-secret-key-change-me"))
+	JWTSecret = []byte(mustGetEnv("JWT_SECRET"))
 
 	FrontendRedirectURL = getEnv("FRONTEND_REDIRECT_URL", "http://localhost:8081/auth/callback")
 

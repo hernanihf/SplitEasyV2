@@ -51,3 +51,15 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
+// mustGetEnv gets a required environment variable, or fails startup if it's
+// missing/empty. Use this for secrets that must never silently fall back to
+// a hardcoded default (e.g. JWT_SECRET) — a missing value should stop the
+// process, not boot it with a value anyone reading the source code knows.
+func mustGetEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("%s environment variable is required but not set", key)
+	}
+	return value
+}
