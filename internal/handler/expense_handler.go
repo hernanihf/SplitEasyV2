@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
 
@@ -16,6 +17,23 @@ type ExpenseHandler struct {
 
 func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService) *ExpenseHandler {
 	return &ExpenseHandler{expenseService, groupService}
+}
+
+// isCallerInSplits reports whether userID is one of the split participants.
+// An empty split list only ever means "equal split among the whole group"
+// (every other method requires an explicit, non-empty list) — since
+// authorizeGroupAccess already confirmed the caller is a group member,
+// that implicitly includes them too.
+func isCallerInSplits(userID uint, splits []SplitInputRequest) bool {
+	if len(splits) == 0 {
+		return true
+	}
+	for _, s := range splits {
+		if s.UserID == userID {
+			return true
+		}
+	}
+	return false
 }
 
 type SplitInputRequest struct {
@@ -72,6 +90,20 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authorizeGroupAccess(w, r, h.groupService, req.GroupID) {
+		return
+	}
+
+	// You can log that someone else paid (a real flow: "my roommate covered
+	// dinner, let me split it"), but only if you're also part of the split —
+	// otherwise any group member could fabricate an expense entirely between
+	// two other people, with no way to edit or delete it afterward.
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+	if userID != req.PaidByID && !isCallerInSplits(userID, req.Splits) {
+		http.Error(w, "you must be the payer or one of the split participants", http.StatusForbidden)
 		return
 	}
 
