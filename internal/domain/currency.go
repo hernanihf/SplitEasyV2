@@ -7,12 +7,9 @@ package domain
 var CurrencyCodes = []string{
 	"USD",
 	"ARS",
-	"EUR",
 	"BRL",
-	"CLP",
-	"UYU",
 	"MXN",
-	"COP",
+	"EUR",
 }
 
 // DefaultCurrency is used when a request doesn't specify a currency.
