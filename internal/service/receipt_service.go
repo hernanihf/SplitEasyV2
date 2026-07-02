@@ -20,11 +20,14 @@ const (
 	// limits each image to 5MB once base64-encoded (~33% overhead), so we
 	// stay comfortably under that.
 	MaxReceiptImageBytes = 4 * 1024 * 1024
-
-	receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
-{"merchant_name": string, "date": string (ISO 8601 "YYYY-MM-DD" if found, else ""), "total_amount": number, "items": [{"description": string, "price": number}]}
-If a field cannot be determined, use an empty string or 0. Amounts must be plain numbers without currency symbols.`
 )
+
+// receiptPrompt embeds the fixed category list so the model's suggestion is
+// always one of the slugs the rest of the system accepts.
+var receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
+{"merchant_name": string, "date": string (ISO 8601 "YYYY-MM-DD" if found, else ""), "total_amount": number, "category": string, "items": [{"description": string, "price": number}]}
+"category" must be exactly one of: ` + strings.Join(domain.ExpenseCategorySlugs, ", ") + `. Pick the best fit for the merchant/purchase (e.g. a restaurant receipt is "food", a supermarket is "groceries", a gas station is "fuel"); use "other" only if nothing fits.
+If a field cannot be determined, use an empty string or 0. Amounts must be plain numbers without currency symbols.`
 
 var supportedReceiptMimeTypes = map[string]bool{
 	"image/jpeg":      true,
@@ -176,6 +179,13 @@ func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*doma
 	var scan domain.ReceiptScan
 	if err := json.Unmarshal([]byte(rawJSON), &scan); err != nil {
 		return nil, fmt.Errorf("failed to parse receipt data from model response: %w", err)
+	}
+
+	// The prompt constrains the category to the fixed list, but the model
+	// output is still untrusted — coerce anything else to the default rather
+	// than letting a made-up slug flow into the expense form.
+	if !domain.IsValidExpenseCategory(scan.Category) {
+		scan.Category = domain.DefaultExpenseCategory
 	}
 
 	return &scan, nil

@@ -66,6 +66,11 @@ definitions:
       amount:
         description: cents
         type: integer
+      category:
+        description: |-
+          Category is one of ExpenseCategorySlugs; it drives the expense's icon
+          and grouping in the frontend.
+        type: string
       created_at:
         type: string
       description:
@@ -196,6 +201,12 @@ definitions:
     type: object
   domain.ReceiptScan:
     properties:
+      category:
+        description: |-
+          Category is the model's suggested expense category — always one of
+          ExpenseCategorySlugs (coerced to the default when the model returns
+          anything else). The user can still change it before saving.
+        type: string
       date:
         type: string
       items:
@@ -255,6 +266,9 @@ definitions:
       amount:
         example: 12050
         type: integer
+      category:
+        example: food
+        type: string
       description:
         example: Dinner
         type: string
@@ -359,6 +373,9 @@ definitions:
       amount:
         example: 12050
         type: integer
+      category:
+        example: food
+        type: string
       description:
         example: Dinner
         type: string

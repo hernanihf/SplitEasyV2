@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	"spliteasy/internal/domain"
 )
 
 type fakeHTTPDoer struct {
@@ -116,6 +118,36 @@ func TestParseReceipt_StripsMarkdownFences(t *testing.T) {
 	}
 	if scan.MerchantName != "Kiosco" {
 		t.Errorf("expected merchant_name 'Kiosco', got %q", scan.MerchantName)
+	}
+}
+
+func TestParseReceipt_KeepsValidSuggestedCategory(t *testing.T) {
+	body := `{"content":[{"type":"text","text":"{\"merchant_name\":\"Supermercado\",\"date\":\"\",\"total_amount\":100,\"category\":\"groceries\",\"items\":[]}"}]}`
+	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
+	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022")
+
+	scan, err := svc.ParseReceipt([]byte("fake-image-bytes"), "image/jpeg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if scan.Category != "groceries" {
+		t.Errorf("expected category 'groceries', got %q", scan.Category)
+	}
+}
+
+func TestParseReceipt_CoercesUnknownCategoryToDefault(t *testing.T) {
+	// The model output is untrusted — a slug outside the fixed list (or a
+	// missing one) must fall back to the default, never flow through as-is.
+	body := `{"content":[{"type":"text","text":"{\"merchant_name\":\"Tienda\",\"date\":\"\",\"total_amount\":100,\"category\":\"yachts\",\"items\":[]}"}]}`
+	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
+	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022")
+
+	scan, err := svc.ParseReceipt([]byte("fake-image-bytes"), "image/jpeg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if scan.Category != domain.DefaultExpenseCategory {
+		t.Errorf("expected category to be coerced to %q, got %q", domain.DefaultExpenseCategory, scan.Category)
 	}
 }
 

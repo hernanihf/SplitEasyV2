@@ -1684,6 +1684,10 @@ const docTemplate = `{
                     "description": "cents",
                     "type": "integer"
                 },
+                "category": {
+                    "description": "Category is one of ExpenseCategorySlugs; it drives the expense's icon\nand grouping in the frontend.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1883,6 +1887,10 @@ const docTemplate = `{
         "domain.ReceiptScan": {
             "type": "object",
             "properties": {
+                "category": {
+                    "description": "Category is the model's suggested expense category — always one of\nExpenseCategorySlugs (coerced to the default when the model returns\nanything else). The user can still change it before saving.",
+                    "type": "string"
+                },
                 "date": {
                     "type": "string"
                 },
@@ -1973,6 +1981,10 @@ const docTemplate = `{
                 "amount": {
                     "type": "integer",
                     "example": 12050
+                },
+                "category": {
+                    "type": "string",
+                    "example": "food"
                 },
                 "description": {
                     "type": "string",
@@ -2125,6 +2137,10 @@ const docTemplate = `{
                 "amount": {
                     "type": "integer",
                     "example": 12050
+                },
+                "category": {
+                    "type": "string",
+                    "example": "food"
                 },
                 "description": {
                     "type": "string",

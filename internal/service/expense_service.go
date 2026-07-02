@@ -52,12 +52,12 @@ var (
 )
 
 type ExpenseService interface {
-	AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
+	AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
 	// UpdateExpense replaces an existing expense's fields, split, and items.
 	// callerID must be the current payer or a current split participant —
 	// checked against the expense as it exists now, before any of these
 	// changes are applied.
-	UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
+	UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
 	// DeleteExpense soft-deletes an expense. Same authorization as Update.
 	DeleteExpense(ctx context.Context, expenseID, callerID uint) error
 	// GetExpense fetches a single expense by id. Unlike Update/Delete, there's
@@ -134,6 +134,19 @@ func resolveSplitsAndItems(amount int64, method SplitMethod, paidByID uint, spli
 	return splits, domainItems, nil
 }
 
+// normalizeCategory applies the default for an omitted category and rejects
+// slugs outside the fixed list — a typo'd or made-up category would otherwise
+// be stored as-is and render without an icon or name in the frontend.
+func normalizeCategory(category string) (string, error) {
+	if category == "" {
+		return domain.DefaultExpenseCategory, nil
+	}
+	if !domain.IsValidExpenseCategory(category) {
+		return "", errors.New("unknown category")
+	}
+	return category, nil
+}
+
 // isPayerOrSplitParticipant reports whether userID has a real stake in the
 // expense as it currently exists — either they paid it or they're one of the
 // people splitting it. Used to gate Update/Delete: without it, anyone in the
@@ -150,10 +163,15 @@ func isPayerOrSplitParticipant(userID uint, expense *domain.Expense) bool {
 	return false
 }
 
-func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
+func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
 	group, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("group not found")
+	}
+
+	category, err = normalizeCategory(category)
+	if err != nil {
+		return nil, err
 	}
 
 	splits, domainItems, err := resolveSplitsAndItems(amount, method, paidByID, splitInputs, items, group)
@@ -165,6 +183,7 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 		GroupID:     groupID,
 		PaidByID:    paidByID,
 		Description: description,
+		Category:    category,
 		Amount:      amount,
 	}
 
@@ -177,7 +196,7 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 	return expense, nil
 }
 
-func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
+func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
 	existing, err := s.expenseRepo.GetByID(ctx, expenseID)
 	if err != nil {
 		return nil, ErrExpenseNotFound
@@ -196,6 +215,11 @@ func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID,
 		return nil, errors.New("group not found")
 	}
 
+	category, err = normalizeCategory(category)
+	if err != nil {
+		return nil, err
+	}
+
 	// The new payer doesn't have to be the caller — same "log for a
 	// roommate" flow AddExpense allows — just a group member, enforced by
 	// resolveSplitsAndItems below.
@@ -206,6 +230,7 @@ func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID,
 
 	existing.PaidByID = paidByID
 	existing.Description = description
+	existing.Category = category
 	existing.Amount = amount
 
 	if err := s.expenseRepo.UpdateWithSplits(ctx, existing, splits, domainItems); err != nil {

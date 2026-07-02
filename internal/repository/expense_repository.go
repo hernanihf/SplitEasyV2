@@ -88,6 +88,7 @@ func (r *expenseRepository) UpdateWithSplits(ctx context.Context, expense *domai
 		if err := tx.Model(&domain.Expense{}).Where("id = ?", expense.ID).Updates(map[string]interface{}{
 			"paid_by_id":  expense.PaidByID,
 			"description": expense.Description,
+			"category":    expense.Category,
 			"amount":      expense.Amount,
 		}).Error; err != nil {
 			return err

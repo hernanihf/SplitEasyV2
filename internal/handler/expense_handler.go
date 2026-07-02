@@ -52,6 +52,7 @@ type AddExpenseRequest struct {
 	GroupID     uint                `json:"group_id" example:"1"`
 	PaidByID    uint                `json:"paid_by_id" example:"1"`
 	Description string              `json:"description" example:"Dinner"`
+	Category    string              `json:"category" example:"food"`
 	Amount      int64               `json:"amount" example:"12050"`
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
@@ -123,6 +124,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		req.GroupID,
 		req.PaidByID,
 		req.Description,
+		req.Category,
 		req.Amount,
 		service.SplitMethod(req.SplitMethod),
 		splitInputs,
@@ -139,6 +141,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 type UpdateExpenseRequest struct {
 	PaidByID    uint                `json:"paid_by_id" example:"1"`
 	Description string              `json:"description" example:"Dinner"`
+	Category    string              `json:"category" example:"food"`
 	Amount      int64               `json:"amount" example:"12050"`
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
@@ -205,6 +208,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		userID,
 		req.PaidByID,
 		req.Description,
+		req.Category,
 		req.Amount,
 		service.SplitMethod(req.SplitMethod),
 		splitInputs,

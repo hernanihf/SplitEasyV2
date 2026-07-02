@@ -26,17 +26,17 @@ type fakeExpenseService struct {
 	getCalledWith    uint
 }
 
-func (f *fakeExpenseService) AddExpense(_ context.Context, groupID, paidByID uint, _ string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
+func (f *fakeExpenseService) AddExpense(_ context.Context, groupID, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
 	f.called = true
-	return &domain.Expense{GroupID: groupID, PaidByID: paidByID, Amount: amount}, nil
+	return &domain.Expense{GroupID: groupID, PaidByID: paidByID, Category: category, Amount: amount}, nil
 }
 
-func (f *fakeExpenseService) UpdateExpense(_ context.Context, expenseID, _, paidByID uint, _ string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
+func (f *fakeExpenseService) UpdateExpense(_ context.Context, expenseID, _, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
 	f.updateCalledWith = expenseID
 	if f.updateErr != nil {
 		return nil, f.updateErr
 	}
-	return &domain.Expense{ID: expenseID, PaidByID: paidByID, Amount: amount}, nil
+	return &domain.Expense{ID: expenseID, PaidByID: paidByID, Category: category, Amount: amount}, nil
 }
 
 func (f *fakeExpenseService) DeleteExpense(_ context.Context, expenseID, _ uint) error {
