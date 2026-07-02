@@ -1604,6 +1604,10 @@ const docTemplate = `{
                     "description": "cents",
                     "type": "integer"
                 },
+                "category": {
+                    "description": "Category is the expense's category slug (empty for settlements) so the\nfeed can show the same icon the group history and detail views do.",
+                    "type": "string"
+                },
                 "date": {
                     "type": "string"
                 },

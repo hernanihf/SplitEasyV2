@@ -123,6 +123,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 				GroupName:  g.Name,
 				GroupEmoji: g.Emoji,
 				Title:      e.Description,
+				Category:   e.Category,
 				ActorID:    e.PaidByID,
 				ActorName:  names[e.PaidByID],
 				Amount:     e.Amount,

@@ -31,15 +31,18 @@ type ActivityEvent struct {
 	// ID is the underlying expense's or settlement's id (whichever Type
 	// says this event is), for opening the same detail view group history
 	// rows link to.
-	ID         uint      `json:"id"`
-	Type       string    `json:"type"` // "expense" | "settlement"
-	GroupID    uint      `json:"group_id"`
-	GroupName  string    `json:"group_name"`
-	GroupEmoji string    `json:"group_emoji"`
-	Title      string    `json:"title"`
-	ActorID    uint      `json:"actor_id"`
-	ActorName  string    `json:"actor_name"`
-	Amount     int64     `json:"amount"`     // cents
-	YourShare  int64     `json:"your_share"` // cents
-	Date       time.Time `json:"date"`
+	ID         uint   `json:"id"`
+	Type       string `json:"type"` // "expense" | "settlement"
+	GroupID    uint   `json:"group_id"`
+	GroupName  string `json:"group_name"`
+	GroupEmoji string `json:"group_emoji"`
+	Title      string `json:"title"`
+	// Category is the expense's category slug (empty for settlements) so the
+	// feed can show the same icon the group history and detail views do.
+	Category  string    `json:"category,omitempty"`
+	ActorID   uint      `json:"actor_id"`
+	ActorName string    `json:"actor_name"`
+	Amount    int64     `json:"amount"`     // cents
+	YourShare int64     `json:"your_share"` // cents
+	Date      time.Time `json:"date"`
 }
