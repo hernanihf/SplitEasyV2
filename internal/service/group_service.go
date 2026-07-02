@@ -17,7 +17,7 @@ var (
 )
 
 type GroupService interface {
-	CreateGroup(ctx context.Context, name, emoji string, creatorID uint) (*domain.Group, error)
+	CreateGroup(ctx context.Context, name, emoji, currency string, creatorID uint) (*domain.Group, error)
 	GetGroup(ctx context.Context, id uint) (*domain.Group, error)
 	ListGroupsForUser(ctx context.Context, userID uint) ([]domain.Group, error)
 	GetInviteToken(ctx context.Context, groupID, userID uint) (string, error)
@@ -43,9 +43,15 @@ func generateInviteToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func (s *groupService) CreateGroup(ctx context.Context, name, emoji string, creatorID uint) (*domain.Group, error) {
+func (s *groupService) CreateGroup(ctx context.Context, name, emoji, currency string, creatorID uint) (*domain.Group, error) {
 	if name == "" {
 		return nil, errors.New("group name is required")
+	}
+
+	if currency == "" {
+		currency = domain.DefaultCurrency
+	} else if !domain.IsValidCurrency(currency) {
+		return nil, errors.New("unknown currency")
 	}
 
 	creator, err := s.userRepo.GetByID(ctx, creatorID)
@@ -65,6 +71,7 @@ func (s *groupService) CreateGroup(ctx context.Context, name, emoji string, crea
 	group := &domain.Group{
 		Name:        name,
 		Emoji:       emoji,
+		Currency:    currency,
 		CreatedBy:   creatorID,
 		InviteToken: token,
 		Members:     []domain.User{*creator},

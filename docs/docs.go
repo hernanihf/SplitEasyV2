@@ -1608,6 +1608,9 @@ const docTemplate = `{
                     "description": "Category is the expense's category slug (empty for settlements) so the\nfeed can show the same icon the group history and detail views do.",
                     "type": "string"
                 },
+                "currency": {
+                    "type": "string"
+                },
                 "date": {
                     "type": "string"
                 },
@@ -1798,6 +1801,10 @@ const docTemplate = `{
                 "created_by": {
                     "type": "integer"
                 },
+                "currency": {
+                    "description": "Currency is the ISO 4217 code (one of CurrencyCodes) every expense and\nsettlement in this group is denominated in. Fixed at creation — there's\nno conversion, so changing it later would silently misinterpret every\namount already recorded.",
+                    "type": "string"
+                },
                 "emoji": {
                     "type": "string"
                 },
@@ -1828,6 +1835,9 @@ const docTemplate = `{
         "domain.GroupSummary": {
             "type": "object",
             "properties": {
+                "currency": {
+                    "type": "string"
+                },
                 "emoji": {
                     "type": "string"
                 },
@@ -1855,14 +1865,20 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.GroupSummary"
                     }
                 },
-                "overall": {
-                    "$ref": "#/definitions/domain.OverallBalance"
+                "overall_by_currency": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.OverallBalance"
+                    }
                 }
             }
         },
         "domain.OverallBalance": {
             "type": "object",
             "properties": {
+                "currency": {
+                    "type": "string"
+                },
                 "net": {
                     "description": "cents",
                     "type": "integer"
@@ -2029,6 +2045,10 @@ const docTemplate = `{
         "handler.CreateGroupRequest": {
             "type": "object",
             "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
                 "emoji": {
                     "type": "string",
                     "example": "🏔️"

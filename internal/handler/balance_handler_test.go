@@ -49,7 +49,7 @@ func (f *fakeBalanceService) DeleteSettlement(_ context.Context, settlementID, _
 
 type fakeGroupServiceForBalance struct{}
 
-func (fakeGroupServiceForBalance) CreateGroup(_ context.Context, _, _ string, _ uint) (*domain.Group, error) {
+func (fakeGroupServiceForBalance) CreateGroup(_ context.Context, _, _, _ string, _ uint) (*domain.Group, error) {
 	return nil, nil
 }
 

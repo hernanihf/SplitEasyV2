@@ -60,6 +60,10 @@ func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*doma
 
 	summary := &domain.HomeSummary{Groups: []domain.GroupSummary{}}
 
+	// Groups in different currencies can't be summed into one number without
+	// a conversion rate, so totals are kept separate per currency.
+	byCurrency := map[string]*domain.OverallBalance{}
+
 	for _, g := range groups {
 		expenses, err := s.expenseRepo.GetByGroupID(ctx, g.ID)
 		if err != nil {
@@ -76,16 +80,31 @@ func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*doma
 			ID:           g.ID,
 			Name:         g.Name,
 			Emoji:        g.Emoji,
+			Currency:     g.Currency,
 			MembersCount: len(g.Members),
 			YourBalance:  net,
 		})
 
-		summary.Overall.Net += net
-		if net > 0 {
-			summary.Overall.Owed += net
-		} else {
-			summary.Overall.Owe += -net
+		overall, ok := byCurrency[g.Currency]
+		if !ok {
+			overall = &domain.OverallBalance{Currency: g.Currency}
+			byCurrency[g.Currency] = overall
 		}
+		overall.Net += net
+		if net > 0 {
+			overall.Owed += net
+		} else {
+			overall.Owe += -net
+		}
+	}
+
+	currencies := make([]string, 0, len(byCurrency))
+	for currency := range byCurrency {
+		currencies = append(currencies, currency)
+	}
+	sort.Strings(currencies)
+	for _, currency := range currencies {
+		summary.OverallByCurrency = append(summary.OverallByCurrency, *byCurrency[currency])
 	}
 
 	return summary, nil
@@ -122,6 +141,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 				GroupID:    g.ID,
 				GroupName:  g.Name,
 				GroupEmoji: g.Emoji,
+				Currency:   g.Currency,
 				Title:      e.Description,
 				Category:   e.Category,
 				ActorID:    e.PaidByID,
@@ -143,6 +163,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 				GroupID:    g.ID,
 				GroupName:  g.Name,
 				GroupEmoji: g.Emoji,
+				Currency:   g.Currency,
 				Title:      names[st.FromUserID] + " paid " + names[st.ToUserID],
 				ActorID:    st.FromUserID,
 				ActorName:  names[st.FromUserID],

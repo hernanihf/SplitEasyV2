@@ -14,6 +14,8 @@ definitions:
           Category is the expense's category slug (empty for settlements) so the
           feed can show the same icon the group history and detail views do.
         type: string
+      currency:
+        type: string
       date:
         type: string
       group_emoji:
@@ -144,6 +146,13 @@ definitions:
         type: string
       created_by:
         type: integer
+      currency:
+        description: |-
+          Currency is the ISO 4217 code (one of CurrencyCodes) every expense and
+          settlement in this group is denominated in. Fixed at creation — there's
+          no conversion, so changing it later would silently misinterpret every
+          amount already recorded.
+        type: string
       emoji:
         type: string
       expenses:
@@ -164,6 +173,8 @@ definitions:
     type: object
   domain.GroupSummary:
     properties:
+      currency:
+        type: string
       emoji:
         type: string
       id:
@@ -182,11 +193,15 @@ definitions:
         items:
           $ref: '#/definitions/domain.GroupSummary'
         type: array
-      overall:
-        $ref: '#/definitions/domain.OverallBalance'
+      overall_by_currency:
+        items:
+          $ref: '#/definitions/domain.OverallBalance'
+        type: array
     type: object
   domain.OverallBalance:
     properties:
+      currency:
+        type: string
       net:
         description: cents
         type: integer
@@ -302,6 +317,9 @@ definitions:
     type: object
   handler.CreateGroupRequest:
     properties:
+      currency:
+        example: USD
+        type: string
       emoji:
         example: "\U0001F3D4️"
         type: string

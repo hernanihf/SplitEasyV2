@@ -5,10 +5,15 @@ import (
 )
 
 type Group struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	Name      string    `gorm:"not null" json:"name"`
-	Emoji     string    `json:"emoji"`
-	CreatedBy uint      `json:"created_by"`
+	ID        uint   `gorm:"primaryKey" json:"id"`
+	Name      string `gorm:"not null" json:"name"`
+	Emoji     string `json:"emoji"`
+	CreatedBy uint   `json:"created_by"`
+	// Currency is the ISO 4217 code (one of CurrencyCodes) every expense and
+	// settlement in this group is denominated in. Fixed at creation — there's
+	// no conversion, so changing it later would silently misinterpret every
+	// amount already recorded.
+	Currency  string    `gorm:"not null;default:USD" json:"currency"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

@@ -44,8 +44,9 @@ func authorizeGroupAccess(w http.ResponseWriter, r *http.Request, gs service.Gro
 }
 
 type CreateGroupRequest struct {
-	Name  string `json:"name" example:"Trip to Paris"`
-	Emoji string `json:"emoji" example:"🏔️"`
+	Name     string `json:"name" example:"Trip to Paris"`
+	Emoji    string `json:"emoji" example:"🏔️"`
+	Currency string `json:"currency" example:"USD"`
 }
 
 // CreateGroup godoc
@@ -82,9 +83,12 @@ func (h *GroupHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := h.groupService.CreateGroup(r.Context(), req.Name, req.Emoji, userID)
+	group, err := h.groupService.CreateGroup(r.Context(), req.Name, req.Emoji, req.Currency, userID)
 	if err != nil {
-		internalError(w, "failed to create group", err)
+		// Every failure mode here is caller error (empty name, unknown
+		// currency, or a JWT for a user that no longer exists) — matches
+		// AddExpense's handling of its own creation-time validation.
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

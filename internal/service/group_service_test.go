@@ -41,12 +41,44 @@ func newGroupService(group *domain.Group) (*groupService, *fakeGroupRepo) {
 func TestCreateGroup_GeneratesInviteToken(t *testing.T) {
 	svc, _ := newGroupService(nil)
 
-	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", 1)
+	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", "", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if group.InviteToken == "" {
 		t.Error("expected a generated invite token, got empty")
+	}
+}
+
+func TestCreateGroup_DefaultsCurrencyToUSD(t *testing.T) {
+	svc, _ := newGroupService(nil)
+
+	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", "", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if group.Currency != domain.DefaultCurrency {
+		t.Errorf("expected default currency %q, got %q", domain.DefaultCurrency, group.Currency)
+	}
+}
+
+func TestCreateGroup_PersistsCurrency(t *testing.T) {
+	svc, _ := newGroupService(nil)
+
+	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", "ARS", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if group.Currency != "ARS" {
+		t.Errorf("expected currency %q, got %q", "ARS", group.Currency)
+	}
+}
+
+func TestCreateGroup_RejectsUnknownCurrency(t *testing.T) {
+	svc, _ := newGroupService(nil)
+
+	if _, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", "GBP", 1); err == nil {
+		t.Error("expected error for unknown currency")
 	}
 }
 
