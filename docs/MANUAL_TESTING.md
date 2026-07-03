@@ -691,7 +691,68 @@ o de una llamada HTTP saliente hacia el endpoint de Bob).
 
 ---
 
-## 7. Limpieza
+## 7. Purga automática de gastos borrados
+
+No es un endpoint HTTP — es un job en background (`internal/service/purge_service.go`)
+que corre dentro del mismo binario de la API, como una goroutine con un
+`time.Ticker`. Al arrancar el proceso corre una vez inmediatamente y después cada
+`purgeTickInterval` (2h). Borra físicamente (cascada completa: comentarios, ítems,
+splits, y la fila del gasto) todo gasto con `deleted_at` de hace más de
+`ExpenseRetentionDays` (60 días), y limpia del bucket la imagen de recibo asociada
+(best-effort — un fallo de storage se loguea pero no revierte el borrado).
+
+Está pensado para correr en **varias instancias a la vez** (Render/GCP/AWS con más
+de una réplica) sin duplicar trabajo ni pisarse: cada intento pasa primero por
+`job_runs.TryClaim`, un `INSERT ... ON CONFLICT ... WHERE last_run_at < cutoff`
+atómico — Postgres serializa los conflictos sobre la misma fila, así que si dos
+instancias intentan al mismo tiempo, solo una gana la fila (`RowsAffected > 0`) y
+hace el trabajo; la otra ve `RowsAffected = 0` y no hace nada. No depende de
+extensiones de Postgres ni de locks de sesión, así que funciona igual con
+Supabase, RDS, Cloud SQL o Postgres self-hosted.
+
+### Caso 7.1 — Corre al arrancar y cascadea correctamente
+
+```bash
+# Crear un gasto con receipt_image_path, ítems, splits y un comentario,
+# y forzar que su deleted_at tenga más de 60 días (en vez de esperar):
+docker exec spliteasy_db psql -U postgres -d spliteasy -c "
+UPDATE expenses SET deleted_at = now() - interval '90 days'
+WHERE id = <id-del-gasto-de-prueba>;"
+
+# Reiniciar la API para disparar el purge inmediato del arranque
+pkill -f "cmd/api/main.go"; go run cmd/api/main.go &
+```
+
+**Esperado**: en el log aparece
+`level=INFO msg="purged old soft-deleted expenses" count=1`; el gasto, sus
+`expense_items`/`expense_item_users`/`expense_splits`/`comments` desaparecen de la
+DB (no solo `deleted_at`, la fila entera); si tenía `receipt_image_path`, la imagen
+ya no está en el bucket de Supabase Storage.
+
+### Caso 7.2 — Retención respeta el corte de 60 días
+
+Un gasto con `deleted_at` de hace, por ejemplo, 10 días (dentro de la ventana de
+retención) debe sobrevivir a la purga — solo se borra lo estrictamente más viejo
+que `ExpenseRetentionDays`.
+
+### Caso 7.3 — Coordinación entre instancias (`job_runs`)
+
+```bash
+docker exec spliteasy_db psql -U postgres -d spliteasy -c "SELECT * FROM job_runs;"
+# last_run_at queda actualizado a "now()" apenas una instancia gana el claim
+
+# Reiniciar la API de nuevo enseguida (simula una segunda instancia/reinicio)
+pkill -f "cmd/api/main.go"; go run cmd/api/main.go &
+```
+
+**Esperado**: en este segundo arranque **no** aparece la línea de log
+`"purged old soft-deleted expenses"` (el claim se rechaza porque `last_run_at` es
+reciente) y `job_runs.last_run_at` no cambia — así es como se evita que N
+instancias reiniciándose repitan el mismo trabajo.
+
+---
+
+## 8. Limpieza
 
 ```bash
 pkill -f "go run cmd/api/main.go"   # detener la API
@@ -735,6 +796,9 @@ docker compose down                 # detener PostgreSQL
 | 6.5 | Disparo fire-and-forget al crear gasto | `POST /expenses` (efecto lateral) | ✅ verificado (logs) |
 | 6.6 | Limpieza automática de suscripción muerta | (efecto lateral) | ✅ verificado |
 | 6.7 | Exclusión de actor / push_enabled=false | (efecto lateral) | ✅ cubierto por tests automatizados |
+| 7.1 | Purga automática + cascada + limpieza de imagen | (job en background) | ✅ verificado |
+| 7.2 | Retención de 60 días respeta el corte | (job en background) | ✅ verificado |
+| 7.3 | Coordinación entre instancias (`job_runs.TryClaim`) | (job en background) | ✅ verificado |
 
 Tests automatizados de la lógica de negocio (split, balances, settle, categorías,
 comentarios, storage, push, borrado en cascada, parseo de respuesta de IA):

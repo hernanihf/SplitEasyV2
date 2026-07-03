@@ -4,12 +4,19 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 )
 
 type fakeExpenseRepo struct {
 	expenses []domain.Expense
+
+	oldReceiptImagePaths []string
+	oldReceiptPathsErr   error
+	purgedCount          int64
+	purgeErr             error
+	purgeCalledWith      time.Time
 }
 
 func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, _ []domain.ExpenseItem) error {
@@ -35,6 +42,15 @@ func (f *fakeExpenseRepo) GetByGroupID(_ context.Context, groupID uint) ([]domai
 
 func (f *fakeExpenseRepo) Delete(_ context.Context, _ uint) error {
 	return nil
+}
+
+func (f *fakeExpenseRepo) GetOldSoftDeletedReceiptImagePaths(_ context.Context, _ time.Time) ([]string, error) {
+	return f.oldReceiptImagePaths, f.oldReceiptPathsErr
+}
+
+func (f *fakeExpenseRepo) PurgeOldSoftDeleted(_ context.Context, cutoff time.Time) (int64, error) {
+	f.purgeCalledWith = cutoff
+	return f.purgedCount, f.purgeErr
 }
 
 type fakeGroupRepo struct {

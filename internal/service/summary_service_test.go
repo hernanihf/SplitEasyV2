@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 )
@@ -63,6 +64,12 @@ func (f *fakeExpenseRepoByGroup) GetByGroupID(_ context.Context, groupID uint) (
 	return f.byGroup[groupID], nil
 }
 func (f *fakeExpenseRepoByGroup) Delete(_ context.Context, _ uint) error { return nil }
+func (f *fakeExpenseRepoByGroup) GetOldSoftDeletedReceiptImagePaths(_ context.Context, _ time.Time) ([]string, error) {
+	return nil, nil
+}
+func (f *fakeExpenseRepoByGroup) PurgeOldSoftDeleted(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
 
 type fakeSettlementRepoByGroup struct {
 	byGroup map[uint][]domain.Settlement

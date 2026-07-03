@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"spliteasy/internal/domain"
 
@@ -19,6 +20,16 @@ type ExpenseRepository interface {
 	// Delete soft-deletes the expense (sets deleted_at); it's excluded from
 	// every normal query afterward but the row itself is kept.
 	Delete(ctx context.Context, id uint) error
+	// GetOldSoftDeletedReceiptImagePaths returns the receipt image path of
+	// every expense soft-deleted before cutoff — collected before
+	// PurgeOldSoftDeleted so the caller can clean up storage after the
+	// hard-delete succeeds.
+	GetOldSoftDeletedReceiptImagePaths(ctx context.Context, cutoff time.Time) ([]string, error)
+	// PurgeOldSoftDeleted permanently deletes every expense (and its
+	// comments/items/splits) soft-deleted before cutoff, regardless of how
+	// long ago — the retention window is the caller's decision, this just
+	// executes it. Returns how many expenses were purged. Irreversible.
+	PurgeOldSoftDeleted(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 type expenseRepository struct {
@@ -156,4 +167,62 @@ func (r *expenseRepository) GetByGroupID(ctx context.Context, groupID uint) ([]d
 
 func (r *expenseRepository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&domain.Expense{}, id).Error
+}
+
+func (r *expenseRepository) GetOldSoftDeletedReceiptImagePaths(ctx context.Context, cutoff time.Time) ([]string, error) {
+	var paths []string
+	err := r.db.WithContext(ctx).Unscoped().Model(&domain.Expense{}).
+		Where("deleted_at IS NOT NULL AND deleted_at < ? AND receipt_image_path IS NOT NULL", cutoff).
+		Pluck("receipt_image_path", &paths).Error
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+// PurgeOldSoftDeleted deletes in FK-dependency order (same as the group
+// cascade in group_repository.go) using raw SQL scoped by expense_id instead
+// of group_id — a plain Exec doesn't apply GORM's soft-delete default scope,
+// which is exactly what's needed here to actually reach already-deleted rows.
+func (r *expenseRepository) PurgeOldSoftDeleted(ctx context.Context, cutoff time.Time) (int64, error) {
+	var purged int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		const oldExpenseIDs = `SELECT id FROM expenses WHERE deleted_at IS NOT NULL AND deleted_at < ?`
+		stmts := []struct {
+			sql  string
+			args []interface{}
+		}{
+			{
+				`DELETE FROM comments WHERE expense_id IN (` + oldExpenseIDs + `)`,
+				[]interface{}{cutoff},
+			},
+			{
+				`DELETE FROM expense_item_users WHERE expense_item_id IN (
+					SELECT id FROM expense_items WHERE expense_id IN (` + oldExpenseIDs + `)
+				 )`,
+				[]interface{}{cutoff},
+			},
+			{
+				`DELETE FROM expense_items WHERE expense_id IN (` + oldExpenseIDs + `)`,
+				[]interface{}{cutoff},
+			},
+			{
+				`DELETE FROM expense_splits WHERE expense_id IN (` + oldExpenseIDs + `)`,
+				[]interface{}{cutoff},
+			},
+		}
+		for _, stmt := range stmts {
+			if err := tx.Exec(stmt.sql, stmt.args...).Error; err != nil {
+				return err
+			}
+		}
+
+		result := tx.Exec(`DELETE FROM expenses WHERE deleted_at IS NOT NULL AND deleted_at < ?`, cutoff)
+		if result.Error != nil {
+			return result.Error
+		}
+		purged = result.RowsAffected
+		return nil
+	})
+	return purged, err
 }

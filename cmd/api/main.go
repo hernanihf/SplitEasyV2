@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -85,6 +86,7 @@ func main() {
 	settlementRepo := repository.NewSettlementRepository(db)
 	commentRepo := repository.NewCommentRepository(db)
 	pushSubRepo := repository.NewPushSubscriptionRepository(db)
+	jobRunRepo := repository.NewJobRunRepository(db)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
@@ -103,6 +105,7 @@ func main() {
 	if config.VAPIDPublicKey == "" || config.VAPIDPrivateKey == "" {
 		slog.Warn("VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set, push notifications will not be sent")
 	}
+	purgeService := service.NewPurgeService(expenseRepo, jobRunRepo, storageService)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService, pushService)
@@ -225,9 +228,36 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
+	go runPeriodicPurge(purgeService)
+
 	slog.Info("starting server", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("server failed to start", "error", err)
 		os.Exit(1)
+	}
+}
+
+// purgeTickInterval is how often each instance *attempts* the purge, not how
+// often it actually happens — JobRunRepository.TryClaim (via purgeService)
+// throttles the real work to roughly once a day across the whole fleet.
+// Ticking more often than that just gives an instance more chances to catch
+// the claim if it's asleep (e.g. Render free tier) when the window opens.
+const purgeTickInterval = 2 * time.Hour
+
+// runPeriodicPurge runs the expense-purge job once immediately, then on a
+// ticker, for as long as the process lives. Safe to run on every
+// instance — see purgeJobMinInterval in purge_service.go.
+func runPeriodicPurge(purgeService service.PurgeService) {
+	ctx := context.Background()
+	if err := purgeService.PurgeOldExpenses(ctx); err != nil {
+		slog.Error("purge job failed", "error", err)
+	}
+
+	ticker := time.NewTicker(purgeTickInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := purgeService.PurgeOldExpenses(ctx); err != nil {
+			slog.Error("purge job failed", "error", err)
+		}
 	}
 }

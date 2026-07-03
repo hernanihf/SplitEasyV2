@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 )
@@ -53,6 +54,14 @@ func (f *fakeExpenseRepoForCreate) GetByGroupID(_ context.Context, groupID uint)
 func (f *fakeExpenseRepoForCreate) Delete(_ context.Context, id uint) error {
 	f.deletedID = id
 	return nil
+}
+
+func (f *fakeExpenseRepoForCreate) GetOldSoftDeletedReceiptImagePaths(_ context.Context, _ time.Time) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeExpenseRepoForCreate) PurgeOldSoftDeleted(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
 }
 
 func newTestExpenseService(members []domain.User) (ExpenseService, *fakeExpenseRepoForCreate) {
