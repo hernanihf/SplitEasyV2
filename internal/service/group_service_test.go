@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"spliteasy/internal/domain"
@@ -38,6 +39,12 @@ func newGroupService(group *domain.Group) (*groupService, *fakeGroupRepo) {
 		groupRepo: groupRepo,
 		userRepo:  &fakeUserRepoForGroups{user: &domain.User{ID: 1, Name: "Alice"}},
 	}
+	return svc, groupRepo
+}
+
+func newGroupServiceWithStorage(group *domain.Group, storage StorageService) (*groupService, *fakeGroupRepo) {
+	svc, groupRepo := newGroupService(group)
+	svc.storageService = storage
 	return svc, groupRepo
 }
 
@@ -169,5 +176,83 @@ func TestJoinGroup_RejectsInvalidToken(t *testing.T) {
 
 	if _, err := svc.JoinGroup(context.Background(), "bogus", 1); err == nil {
 		t.Error("expected error for invalid token")
+	}
+}
+
+func TestDeleteGroup_AllowsCreator(t *testing.T) {
+	group := &domain.Group{ID: 1, CreatedBy: 7}
+	svc, repo := newGroupService(group)
+
+	if err := svc.DeleteGroup(context.Background(), 1, 7); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.deletedGroupID != 1 {
+		t.Errorf("expected group 1 to be deleted, got deletedGroupID=%d", repo.deletedGroupID)
+	}
+}
+
+func TestDeleteGroup_RejectsNonCreator(t *testing.T) {
+	group := &domain.Group{ID: 1, CreatedBy: 7}
+	svc, repo := newGroupService(group)
+
+	err := svc.DeleteGroup(context.Background(), 1, 99)
+	if !errors.Is(err, ErrNotGroupCreator) {
+		t.Fatalf("expected ErrNotGroupCreator, got %v", err)
+	}
+	if repo.deletedGroupID != 0 {
+		t.Error("expected the group to NOT be deleted when the caller isn't the creator")
+	}
+}
+
+func TestDeleteGroup_GroupNotFound(t *testing.T) {
+	svc, _ := newGroupService(nil)
+
+	err := svc.DeleteGroup(context.Background(), 1, 7)
+	if !errors.Is(err, ErrGroupNotFound) {
+		t.Fatalf("expected ErrGroupNotFound, got %v", err)
+	}
+}
+
+func TestDeleteGroup_DeletesReceiptImagesFromStorage(t *testing.T) {
+	group := &domain.Group{ID: 1, CreatedBy: 7}
+	storage := &fakeStorageService{}
+	svc, repo := newGroupServiceWithStorage(group, storage)
+	repo.receiptImagePaths = []string{"a.jpg", "b.jpg"}
+
+	if err := svc.DeleteGroup(context.Background(), 1, 7); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(storage.deletedPaths) != 2 {
+		t.Fatalf("expected 2 images deleted from storage, got %d: %+v", len(storage.deletedPaths), storage.deletedPaths)
+	}
+}
+
+func TestDeleteGroup_StorageFailureDoesNotFailTheDelete(t *testing.T) {
+	// The DB delete has already been confirmed by the time images are
+	// cleaned up — a storage error must not turn a successful delete into a
+	// failure response.
+	group := &domain.Group{ID: 1, CreatedBy: 7}
+	storage := &fakeStorageService{deleteErr: errors.New("network error")}
+	svc, repo := newGroupServiceWithStorage(group, storage)
+	repo.receiptImagePaths = []string{"a.jpg"}
+
+	if err := svc.DeleteGroup(context.Background(), 1, 7); err != nil {
+		t.Fatalf("expected DeleteGroup to succeed despite the storage error, got: %v", err)
+	}
+	if repo.deletedGroupID != 1 {
+		t.Error("expected the group to still be deleted")
+	}
+}
+
+func TestDeleteGroup_SkipsStorageCleanupWhenNotConfigured(t *testing.T) {
+	group := &domain.Group{ID: 1, CreatedBy: 7}
+	svc, repo := newGroupService(group) // storageService left nil, as in production when unconfigured
+	repo.receiptImagePaths = []string{"a.jpg"}
+
+	if err := svc.DeleteGroup(context.Background(), 1, 7); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.deletedGroupID != 1 {
+		t.Error("expected the group to still be deleted")
 	}
 }

@@ -73,6 +73,10 @@ func (fakeGroupServiceForBalance) VerifyMembership(_ context.Context, _, _ uint)
 	return nil
 }
 
+func (fakeGroupServiceForBalance) DeleteGroup(_ context.Context, _, _ uint) error {
+	return nil
+}
+
 // settleDebtRequest builds and executes a SettleDebt call as if it went
 // through JWTAuth (which stores the user id as a float64, matching how JWT
 // numeric claims decode) and chi's URL param routing for "id".

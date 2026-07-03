@@ -18,6 +18,8 @@ type fakeStorageService struct {
 	uploadErr    error
 	uploadedPath string
 	uploadedData []byte
+	deleteErr    error
+	deletedPaths []string
 }
 
 func (f *fakeStorageService) Upload(_ context.Context, path string, data []byte, _ string) error {
@@ -28,6 +30,11 @@ func (f *fakeStorageService) Upload(_ context.Context, path string, data []byte,
 
 func (f *fakeStorageService) SignedURL(_ context.Context, _ string, _ time.Duration) (string, error) {
 	return "", errors.New("not used in these tests")
+}
+
+func (f *fakeStorageService) Delete(_ context.Context, path string) error {
+	f.deletedPaths = append(f.deletedPaths, path)
+	return f.deleteErr
 }
 
 type fakeHTTPDoer struct {

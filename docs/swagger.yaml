@@ -175,6 +175,11 @@ definitions:
     type: object
   domain.GroupSummary:
     properties:
+      created_by:
+        description: |-
+          CreatedBy lets the frontend show a delete affordance only to the
+          group's creator.
+        type: integer
       currency:
         type: string
       emoji:
@@ -1014,6 +1019,44 @@ paths:
       tags:
       - expenses
   /groups/{id}:
+    delete:
+      description: Permanently deletes the group and everything under it — every expense,
+        settlement, and comment, plus their receipt images. Only the group's creator
+        may do this. Irreversible.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Delete a group
+      tags:
+      - groups
     get:
       description: Retrieves a group by ID.
       parameters:

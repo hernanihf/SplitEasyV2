@@ -38,9 +38,13 @@ func (f *fakeExpenseRepo) Delete(_ context.Context, _ uint) error {
 }
 
 type fakeGroupRepo struct {
-	group         *domain.Group
-	addedMembers  [][2]uint
-	updatedTokens map[uint]string
+	group             *domain.Group
+	addedMembers      [][2]uint
+	updatedTokens     map[uint]string
+	receiptImagePaths []string
+	receiptPathsErr   error
+	deletedGroupID    uint
+	deleteErr         error
 }
 
 func (f *fakeGroupRepo) Create(_ context.Context, group *domain.Group) error { return nil }
@@ -79,6 +83,15 @@ func (f *fakeGroupRepo) SetInviteTokenIfEmpty(_ context.Context, groupID uint, t
 		f.updatedTokens[groupID] = token
 	}
 	return nil
+}
+
+func (f *fakeGroupRepo) GetExpenseReceiptImagePaths(_ context.Context, _ uint) ([]string, error) {
+	return f.receiptImagePaths, f.receiptPathsErr
+}
+
+func (f *fakeGroupRepo) Delete(_ context.Context, groupID uint) error {
+	f.deletedGroupID = groupID
+	return f.deleteErr
 }
 
 type fakeSettlementRepo struct {

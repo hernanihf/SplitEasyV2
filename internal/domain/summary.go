@@ -23,6 +23,9 @@ type GroupSummary struct {
 	Currency     string `json:"currency"`
 	MembersCount int    `json:"members_count"`
 	YourBalance  int64  `json:"your_balance"` // cents
+	// CreatedBy lets the frontend show a delete affordance only to the
+	// group's creator.
+	CreatedBy uint `json:"created_by"`
 }
 
 // HomeSummary powers the home screen in a single request.

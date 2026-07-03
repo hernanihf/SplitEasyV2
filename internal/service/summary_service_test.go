@@ -36,6 +36,12 @@ func (f *fakeGroupRepoForSummary) SetInviteTokenIfEmpty(_ context.Context, _ uin
 	return nil
 }
 
+func (f *fakeGroupRepoForSummary) GetExpenseReceiptImagePaths(_ context.Context, _ uint) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeGroupRepoForSummary) Delete(_ context.Context, _ uint) error { return nil }
+
 // fakeExpenseRepoByGroup and fakeSettlementRepoByGroup, unlike the
 // same-named fakes in balance_service_test.go, actually filter by group id
 // — GetHomeSummary iterates multiple groups per test and needs each one to

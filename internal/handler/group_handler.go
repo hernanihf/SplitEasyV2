@@ -129,6 +129,45 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, group)
 }
 
+// DeleteGroup godoc
+// @Summary      Delete a group
+// @Description  Permanently deletes the group and everything under it — every expense, settlement, and comment, plus their receipt images. Only the group's creator may do this. Irreversible.
+// @Tags         groups
+// @Param        id   path  int  true  "Group ID"
+// @Success      204  "No Content"
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Failure      500  {string}  string  "Internal Server Error"
+// @Security     JWT
+// @Router       /groups/{id} [delete]
+func (h *GroupHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	switch err := h.groupService.DeleteGroup(r.Context(), uint(id), userID); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, service.ErrGroupNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, service.ErrNotGroupCreator):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	default:
+		internalError(w, "failed to delete group", err)
+	}
+}
+
 // ListGroups godoc
 // @Summary      List groups for the authenticated user
 // @Description  Retrieves all groups the authenticated user is a member of.

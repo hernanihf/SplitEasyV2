@@ -83,6 +83,7 @@ func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*doma
 			Currency:     g.Currency,
 			MembersCount: len(g.Members),
 			YourBalance:  net,
+			CreatedBy:    g.CreatedBy,
 		})
 
 		overall, ok := byCurrency[g.Currency]

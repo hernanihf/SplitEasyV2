@@ -925,6 +925,62 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Permanently deletes the group and everything under it — every expense, settlement, and comment, plus their receipt images. Only the group's creator may do this. Irreversible.",
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Delete a group",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         },
         "/groups/{id}/balances": {
@@ -1983,6 +2039,10 @@ const docTemplate = `{
         "domain.GroupSummary": {
             "type": "object",
             "properties": {
+                "created_by": {
+                    "description": "CreatedBy lets the frontend show a delete affordance only to the\ngroup's creator.",
+                    "type": "integer"
+                },
                 "currency": {
                     "type": "string"
                 },

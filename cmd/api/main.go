@@ -88,7 +88,6 @@ func main() {
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
-	groupService := service.NewGroupService(groupRepo, userRepo)
 	expenseService := service.NewExpenseService(expenseRepo, groupRepo)
 	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
 	authService := service.NewAuthService(userRepo, refreshStore)
@@ -96,6 +95,7 @@ func main() {
 	if storageService == nil {
 		slog.Warn("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set, receipt images will not be persisted")
 	}
+	groupService := service.NewGroupService(groupRepo, userRepo, storageService)
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel, storageService)
 	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
 	commentService := service.NewCommentService(commentRepo)
@@ -187,6 +187,7 @@ func main() {
 			r.Get("/groups", groupHandler.ListGroups)
 			r.Post("/groups/join", groupHandler.JoinGroup)
 			r.Get("/groups/{id}", groupHandler.GetGroup)
+			r.Delete("/groups/{id}", groupHandler.DeleteGroup)
 			r.Get("/groups/{id}/invite", groupHandler.GetInvite)
 			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
 			r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)

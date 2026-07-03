@@ -15,6 +15,17 @@ type GroupRepository interface {
 	GetByInviteToken(ctx context.Context, token string) (*domain.Group, error)
 	AddMember(ctx context.Context, groupID, userID uint) error
 	SetInviteTokenIfEmpty(ctx context.Context, groupID uint, token string) error
+	// GetExpenseReceiptImagePaths returns the storage path of every receipt
+	// image attached to any expense in the group (including already
+	// soft-deleted expenses) — collected before Delete so the caller can
+	// clean up Supabase Storage afterward.
+	GetExpenseReceiptImagePaths(ctx context.Context, groupID uint) ([]string, error)
+	// Delete permanently removes the group and everything under it — every
+	// expense (with its splits/items), every settlement, and every comment
+	// on either, regardless of prior soft-delete state. None of the
+	// relevant foreign keys cascade today, so this deletes in dependency
+	// order inside one transaction. Irreversible.
+	Delete(ctx context.Context, groupID uint) error
 }
 
 type groupRepository struct {
@@ -75,4 +86,58 @@ func (r *groupRepository) SetInviteTokenIfEmpty(ctx context.Context, groupID uin
 	return r.db.WithContext(ctx).Model(&domain.Group{}).
 		Where("id = ? AND (invite_token IS NULL OR invite_token = '')", groupID).
 		Update("invite_token", token).Error
+}
+
+func (r *groupRepository) GetExpenseReceiptImagePaths(ctx context.Context, groupID uint) ([]string, error) {
+	var paths []string
+	err := r.db.WithContext(ctx).Unscoped().Model(&domain.Expense{}).
+		Where("group_id = ? AND receipt_image_path IS NOT NULL", groupID).
+		Pluck("receipt_image_path", &paths).Error
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+// Delete deletes in FK-dependency order (see the interface doc comment) using
+// raw SQL — a plain Exec, unlike GORM's model-based Delete, doesn't apply the
+// soft-delete default scope, so already-deleted rows are purged along with
+// everything else instead of being left behind forever.
+func (r *groupRepository) Delete(ctx context.Context, groupID uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		stmts := []struct {
+			sql  string
+			args []interface{}
+		}{
+			{
+				`DELETE FROM comments WHERE expense_id IN (SELECT id FROM expenses WHERE group_id = ?)
+				 OR settlement_id IN (SELECT id FROM settlements WHERE group_id = ?)`,
+				[]interface{}{groupID, groupID},
+			},
+			{
+				`DELETE FROM expense_item_users WHERE expense_item_id IN (
+					SELECT id FROM expense_items WHERE expense_id IN (SELECT id FROM expenses WHERE group_id = ?)
+				 )`,
+				[]interface{}{groupID},
+			},
+			{
+				`DELETE FROM expense_items WHERE expense_id IN (SELECT id FROM expenses WHERE group_id = ?)`,
+				[]interface{}{groupID},
+			},
+			{
+				`DELETE FROM expense_splits WHERE expense_id IN (SELECT id FROM expenses WHERE group_id = ?)`,
+				[]interface{}{groupID},
+			},
+			{`DELETE FROM expenses WHERE group_id = ?`, []interface{}{groupID}},
+			{`DELETE FROM settlements WHERE group_id = ?`, []interface{}{groupID}},
+			{`DELETE FROM group_users WHERE group_id = ?`, []interface{}{groupID}},
+			{`DELETE FROM groups WHERE id = ?`, []interface{}{groupID}},
+		}
+		for _, stmt := range stmts {
+			if err := tx.Exec(stmt.sql, stmt.args...).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

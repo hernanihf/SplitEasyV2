@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
@@ -12,8 +13,9 @@ import (
 
 // Sentinel errors that handlers map to HTTP status codes via errors.Is.
 var (
-	ErrGroupNotFound  = errors.New("group not found")
-	ErrNotGroupMember = errors.New("only group members can share an invite")
+	ErrGroupNotFound   = errors.New("group not found")
+	ErrNotGroupMember  = errors.New("only group members can share an invite")
+	ErrNotGroupCreator = errors.New("only the group's creator can delete it")
 )
 
 type GroupService interface {
@@ -23,15 +25,20 @@ type GroupService interface {
 	GetInviteToken(ctx context.Context, groupID, userID uint) (string, error)
 	JoinGroup(ctx context.Context, token string, userID uint) (*domain.Group, error)
 	VerifyMembership(ctx context.Context, groupID, userID uint) error
+	// DeleteGroup permanently deletes the group and everything under it
+	// (expenses, settlements, comments, and their receipt images). Only the
+	// group's creator may do this. Irreversible.
+	DeleteGroup(ctx context.Context, groupID, callerID uint) error
 }
 
 type groupService struct {
-	groupRepo repository.GroupRepository
-	userRepo  repository.UserRepository
+	groupRepo      repository.GroupRepository
+	userRepo       repository.UserRepository
+	storageService StorageService // nil when Supabase Storage isn't configured
 }
 
-func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.UserRepository) GroupService {
-	return &groupService{groupRepo, userRepo}
+func NewGroupService(groupRepo repository.GroupRepository, userRepo repository.UserRepository, storageService StorageService) GroupService {
+	return &groupService{groupRepo, userRepo, storageService}
 }
 
 // generateInviteToken returns a random, URL-safe invite token.
@@ -157,4 +164,38 @@ func (s *groupService) JoinGroup(ctx context.Context, token string, userID uint)
 	}
 
 	return group, nil
+}
+
+// DeleteGroup checks that callerID created the group, then permanently
+// deletes it and everything under it. Receipt images are collected before
+// the DB delete and removed from storage afterward, best-effort: a failed
+// image cleanup is logged and swallowed rather than undoing (or failing) a
+// deletion that's already been confirmed to the caller.
+func (s *groupService) DeleteGroup(ctx context.Context, groupID, callerID uint) error {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return ErrGroupNotFound
+	}
+	if group.CreatedBy != callerID {
+		return ErrNotGroupCreator
+	}
+
+	paths, err := s.groupRepo.GetExpenseReceiptImagePaths(ctx, groupID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.groupRepo.Delete(ctx, groupID); err != nil {
+		return err
+	}
+
+	if s.storageService != nil {
+		for _, path := range paths {
+			if err := s.storageService.Delete(ctx, path); err != nil {
+				slog.Error("failed to delete receipt image for a deleted group", "error", err, "path", path)
+			}
+		}
+	}
+
+	return nil
 }

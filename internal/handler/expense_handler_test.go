@@ -232,6 +232,10 @@ func (f *fakeStorageService) SignedURL(_ context.Context, _ string, _ time.Durat
 	return f.signURL, nil
 }
 
+func (f *fakeStorageService) Delete(_ context.Context, _ string) error {
+	return nil
+}
+
 func getExpenseRequest(t *testing.T, fake *fakeExpenseService, storage service.StorageService, expenseID string, authUserID uint) *httptest.ResponseRecorder {
 	t.Helper()
 

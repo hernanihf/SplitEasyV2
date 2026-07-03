@@ -21,6 +21,9 @@ type StorageService interface {
 	// object — generated fresh on every call, never cached, since a stored
 	// URL would eventually expire while a stored *path* never does.
 	SignedURL(ctx context.Context, path string, expiry time.Duration) (string, error)
+	// Delete removes a single object. Deleting a path that doesn't exist is
+	// not an error (Supabase Storage returns 200 either way).
+	Delete(ctx context.Context, path string) error
 }
 
 type storageService struct {
@@ -62,6 +65,26 @@ func (s *storageService) Upload(ctx context.Context, path string, data []byte, c
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("storage upload returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (s *storageService) Delete(ctx context.Context, path string) error {
+	url := fmt.Sprintf("%s/storage/v1/object/%s/%s", s.baseURL, s.bucket, path)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.serviceKey)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("storage delete request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("storage delete returned status %d", resp.StatusCode)
 	}
 	return nil
 }
