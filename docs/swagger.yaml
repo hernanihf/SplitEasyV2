@@ -96,6 +96,8 @@ definitions:
         description: Relationships
       paid_by_id:
         type: integer
+      receipt_image_url:
+        type: string
       splits:
         items:
           $ref: '#/definitions/domain.ExpenseSplit'
@@ -235,6 +237,13 @@ definitions:
         type: array
       merchant_name:
         type: string
+      receipt_image_path:
+        description: |-
+          ReceiptImagePath is set by our own code after uploading the scanned
+          image to storage (never comes from the model's response) — the
+          frontend threads it through to the expense it creates from this scan,
+          so the image can be viewed/downloaded later.
+        type: string
       total_amount:
         type: number
     type: object
@@ -302,6 +311,12 @@ definitions:
       paid_by_id:
         example: 1
         type: integer
+      receipt_image_path:
+        description: |-
+          ReceiptImagePath, if set, is the storage path returned by a prior
+          POST /receipts/scan call — carries the scanned image over to the
+          expense it was scanned for.
+        type: string
       split_method:
         enum:
         - equal
@@ -409,6 +424,11 @@ definitions:
       paid_by_id:
         example: 1
         type: integer
+      receipt_image_path:
+        description: |-
+          ReceiptImagePath: omit the field to leave the expense's existing image
+          (if any) untouched; include it (even as "") to replace it.
+        type: string
       split_method:
         enum:
         - equal

@@ -18,4 +18,9 @@ type ReceiptScan struct {
 	// anything else). The user can still change it before saving.
 	Category string        `json:"category"`
 	Items    []ReceiptItem `json:"items"`
+	// ReceiptImagePath is set by our own code after uploading the scanned
+	// image to storage (never comes from the model's response) — the
+	// frontend threads it through to the expense it creates from this scan,
+	// so the image can be viewed/downloaded later.
+	ReceiptImagePath string `json:"receipt_image_path,omitempty"`
 }

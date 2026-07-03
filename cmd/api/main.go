@@ -63,6 +63,7 @@ func main() {
 	}
 	config.InitAuth()
 	config.InitAnthropic()
+	config.InitSupabase()
 
 	// Refresh tokens are stored in Redis when available (REDIS_URL), so a
 	// stolen/rotated token can be revoked from any instance and survives
@@ -89,14 +90,18 @@ func main() {
 	expenseService := service.NewExpenseService(expenseRepo, groupRepo)
 	balanceService := service.NewBalanceService(expenseRepo, groupRepo, settlementRepo)
 	authService := service.NewAuthService(userRepo, refreshStore)
-	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel)
+	storageService := service.NewStorageService(http.DefaultClient, config.SupabaseURL, config.SupabaseServiceRoleKey, config.SupabaseReceiptsBucket)
+	if storageService == nil {
+		slog.Warn("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set, receipt images will not be persisted")
+	}
+	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel, storageService)
 	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
 	commentService := service.NewCommentService(commentRepo)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService)
 	groupHandler := handler.NewGroupHandler(groupService)
-	expenseHandler := handler.NewExpenseHandler(expenseService, groupService)
+	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService)
 	balanceHandler := handler.NewBalanceHandler(balanceService, groupService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)

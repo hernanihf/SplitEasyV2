@@ -1724,6 +1724,9 @@ const docTemplate = `{
                 "paid_by_id": {
                     "type": "integer"
                 },
+                "receipt_image_url": {
+                    "type": "string"
+                },
                 "splits": {
                     "type": "array",
                     "items": {
@@ -1923,6 +1926,10 @@ const docTemplate = `{
                 "merchant_name": {
                     "type": "string"
                 },
+                "receipt_image_path": {
+                    "description": "ReceiptImagePath is set by our own code after uploading the scanned\nimage to storage (never comes from the model's response) — the\nfrontend threads it through to the expense it creates from this scan,\nso the image can be viewed/downloaded later.",
+                    "type": "string"
+                },
                 "total_amount": {
                     "type": "number"
                 }
@@ -2023,6 +2030,10 @@ const docTemplate = `{
                 "paid_by_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "receipt_image_path": {
+                    "description": "ReceiptImagePath, if set, is the storage path returned by a prior\nPOST /receipts/scan call — carries the scanned image over to the\nexpense it was scanned for.",
+                    "type": "string"
                 },
                 "split_method": {
                     "type": "string",
@@ -2179,6 +2190,10 @@ const docTemplate = `{
                 "paid_by_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "receipt_image_path": {
+                    "description": "ReceiptImagePath: omit the field to leave the expense's existing image\n(if any) untouched; include it (even as \"\") to replace it.",
+                    "type": "string"
                 },
                 "split_method": {
                     "type": "string",

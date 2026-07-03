@@ -73,7 +73,7 @@ func TestAddExpense_EqualAmongAllMembers(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, nil, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestAddExpense_EqualAmongSubset(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}, {ID: 3}}
 	svc, repo := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 2}}, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 2}}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestAddExpense_EqualDistributesRemainderExactly(t *testing.T) {
 	svc, repo := newTestExpenseService(members)
 
 	// 1000 cents / 3 doesn't divide evenly; the parts must still sum to 1000.
-	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 1000, SplitEqual, nil, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 1000, SplitEqual, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestAddExpense_Percentage(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", "", 1000, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: 70},
 		{UserID: 2, Value: 30},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestAddExpense_PercentageMustAddUpTo100(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", "", 1000, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: 70},
 		{UserID: 2, Value: 20},
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Error("expected error when percentages don't add up to 100")
 	}
@@ -164,7 +164,7 @@ func TestAddExpense_PercentageRejectsNegativeValue(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Rent", "", 100, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: -900},
 		{UserID: 2, Value: 1000},
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Error("expected error for a negative percentage")
 	}
@@ -177,7 +177,7 @@ func TestAddExpense_Fixed(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", "", 300, SplitFixed, []SplitInput{
 		{UserID: 1, Value: 100},
 		{UserID: 2, Value: 200},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestAddExpense_FixedMustAddUpToAmount(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", "", 300, SplitFixed, []SplitInput{
 		{UserID: 1, Value: 100},
 		{UserID: 2, Value: 150},
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Error("expected error when fixed amounts don't add up to the total")
 	}
@@ -211,7 +211,7 @@ func TestAddExpense_FixedRejectsNegativeValue(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Groceries", "", 300, SplitFixed, []SplitInput{
 		{UserID: 1, Value: -200},
 		{UserID: 2, Value: 500},
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Error("expected error for a negative fixed amount")
 	}
@@ -224,7 +224,7 @@ func TestAddExpense_Shares(t *testing.T) {
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Bread", "", 30, SplitShares, []SplitInput{
 		{UserID: 1, Value: 2},
 		{UserID: 2, Value: 4},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -245,8 +245,7 @@ func TestAddExpense_PersistsItems(t *testing.T) {
 		[]ItemInput{
 			{Description: "Burger", Amount: 200, UserIDs: []uint{1, 2}},
 			{Description: "Salad", Amount: 100, UserIDs: []uint{3}},
-		},
-	)
+		}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -263,8 +262,7 @@ func TestAddExpense_RejectsItemForNonMember(t *testing.T) {
 	svc, _ := newTestExpenseService(members)
 
 	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, nil,
-		[]ItemInput{{Description: "Burger", Amount: 100, UserIDs: []uint{99}}},
-	)
+		[]ItemInput{{Description: "Burger", Amount: 100, UserIDs: []uint{99}}}, nil)
 	if err == nil {
 		t.Error("expected error when an item is assigned to a non-member")
 	}
@@ -274,7 +272,7 @@ func TestAddExpense_RejectsNonMemberInSplit(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 99}}, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, []SplitInput{{UserID: 1}, {UserID: 99}}, nil, nil)
 	if err == nil {
 		t.Error("expected error when split includes a non-member")
 	}
@@ -284,7 +282,7 @@ func TestAddExpense_RejectsNonMemberPayer(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(context.Background(), 1, 99, "Dinner", "", 100, SplitEqual, nil, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 99, "Dinner", "", 100, SplitEqual, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error when payer is not a member")
 	}
@@ -294,7 +292,7 @@ func TestAddExpense_RejectsNonPositiveAmount(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 0, SplitEqual, nil, nil)
+	_, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 0, SplitEqual, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for non-positive amount")
 	}
@@ -303,7 +301,7 @@ func TestAddExpense_RejectsNonPositiveAmount(t *testing.T) {
 func TestAddExpense_DefaultsCategoryToOther(t *testing.T) {
 	svc, repo := newTestExpenseService([]domain.User{{ID: 1}})
 
-	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, nil, nil); err != nil {
+	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "", 100, SplitEqual, nil, nil, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if repo.createdExpense.Category != domain.DefaultExpenseCategory {
@@ -314,7 +312,7 @@ func TestAddExpense_DefaultsCategoryToOther(t *testing.T) {
 func TestAddExpense_PersistsCategory(t *testing.T) {
 	svc, repo := newTestExpenseService([]domain.User{{ID: 1}})
 
-	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "food", 100, SplitEqual, nil, nil); err != nil {
+	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "food", 100, SplitEqual, nil, nil, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if repo.createdExpense.Category != "food" {
@@ -325,7 +323,7 @@ func TestAddExpense_PersistsCategory(t *testing.T) {
 func TestAddExpense_RejectsUnknownCategory(t *testing.T) {
 	svc, repo := newTestExpenseService([]domain.User{{ID: 1}})
 
-	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "yachts", 100, SplitEqual, nil, nil); err == nil {
+	if _, err := svc.AddExpense(context.Background(), 1, 1, "Dinner", "yachts", 100, SplitEqual, nil, nil, nil); err == nil {
 		t.Error("expected error for unknown category")
 	}
 	if repo.createdExpense != nil {
@@ -345,7 +343,7 @@ func TestUpdateExpense_AllowsPayerToEdit(t *testing.T) {
 	svc, repo := newTestExpenseService(members)
 	repo.existing = existingTwoPersonExpense()
 
-	updated, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner (edited)", "", 2000, SplitEqual, nil, nil)
+	updated, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner (edited)", "", 2000, SplitEqual, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -363,7 +361,7 @@ func TestUpdateExpense_ChangesCategory(t *testing.T) {
 	svc, repo := newTestExpenseService(members)
 	repo.existing = existingTwoPersonExpense()
 
-	updated, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", "food", 1000, SplitEqual, nil, nil)
+	updated, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", "food", 1000, SplitEqual, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -377,7 +375,7 @@ func TestUpdateExpense_RejectsUnknownCategory(t *testing.T) {
 	svc, repo := newTestExpenseService(members)
 	repo.existing = existingTwoPersonExpense()
 
-	if _, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", "yachts", 1000, SplitEqual, nil, nil); err == nil {
+	if _, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", "yachts", 1000, SplitEqual, nil, nil, nil); err == nil {
 		t.Error("expected error for unknown category")
 	}
 	if repo.updatedExpense != nil {
@@ -391,7 +389,7 @@ func TestUpdateExpense_AllowsSplitParticipantToEdit(t *testing.T) {
 	repo.existing = existingTwoPersonExpense()
 
 	// Caller (2) didn't pay, but is one of the split participants.
-	if _, err := svc.UpdateExpense(context.Background(), 5, 2, 1, "Dinner", "", 1000, SplitEqual, nil, nil); err != nil {
+	if _, err := svc.UpdateExpense(context.Background(), 5, 2, 1, "Dinner", "", 1000, SplitEqual, nil, nil, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -401,7 +399,7 @@ func TestUpdateExpense_RejectsBystander(t *testing.T) {
 	svc, repo := newTestExpenseService(members)
 	repo.existing = existingTwoPersonExpense()
 
-	_, err := svc.UpdateExpense(context.Background(), 5, 3, 1, "Dinner", "", 1000, SplitEqual, nil, nil)
+	_, err := svc.UpdateExpense(context.Background(), 5, 3, 1, "Dinner", "", 1000, SplitEqual, nil, nil, nil)
 	if !errors.Is(err, ErrNotExpenseParty) {
 		t.Errorf("expected ErrNotExpenseParty, got %v", err)
 	}
@@ -411,7 +409,7 @@ func TestUpdateExpense_RejectsUnknownExpense(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, _ := newTestExpenseService(members)
 
-	_, err := svc.UpdateExpense(context.Background(), 999, 1, 1, "Dinner", "", 1000, SplitEqual, nil, nil)
+	_, err := svc.UpdateExpense(context.Background(), 999, 1, 1, "Dinner", "", 1000, SplitEqual, nil, nil, nil)
 	if !errors.Is(err, ErrExpenseNotFound) {
 		t.Errorf("expected ErrExpenseNotFound, got %v", err)
 	}
@@ -425,7 +423,7 @@ func TestUpdateExpense_StillValidatesSplits(t *testing.T) {
 	_, err := svc.UpdateExpense(context.Background(), 5, 1, 1, "Dinner", "", 100, SplitPercentage, []SplitInput{
 		{UserID: 1, Value: -900},
 		{UserID: 2, Value: 1000},
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Error("expected the same negative-percentage validation as AddExpense on update")
 	}

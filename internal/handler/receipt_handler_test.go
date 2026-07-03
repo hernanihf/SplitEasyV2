@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -16,7 +17,7 @@ type fakeReceiptService struct {
 	gotMimeType string
 }
 
-func (f *fakeReceiptService) ParseReceipt(imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
+func (f *fakeReceiptService) ParseReceipt(_ context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
 	f.gotMimeType = mimeType
 	return &domain.ReceiptScan{}, nil
 }

@@ -2,10 +2,13 @@ package service
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -53,17 +56,44 @@ type httpDoer interface {
 }
 
 type ReceiptService interface {
-	ParseReceipt(imageBytes []byte, mimeType string) (*domain.ReceiptScan, error)
+	ParseReceipt(ctx context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error)
 }
 
 type receiptService struct {
-	httpClient httpDoer
-	apiKey     string
-	model      string
+	httpClient     httpDoer
+	apiKey         string
+	model          string
+	storageService StorageService // nil when Supabase Storage isn't configured
 }
 
-func NewReceiptService(httpClient httpDoer, apiKey, model string) ReceiptService {
-	return &receiptService{httpClient, apiKey, model}
+func NewReceiptService(httpClient httpDoer, apiKey, model string, storageService StorageService) ReceiptService {
+	return &receiptService{httpClient, apiKey, model, storageService}
+}
+
+// receiptStoragePath returns a fresh, unguessable object key for a scanned
+// receipt — same random-token approach as generateInviteToken (group_service.go)
+// rather than pulling in a UUID dependency for one call site.
+func receiptStoragePath(mimeType string) (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b) + "." + fileExtensionFor(mimeType), nil
+}
+
+func fileExtensionFor(mimeType string) string {
+	switch mimeType {
+	case "application/pdf":
+		return "pdf"
+	case "image/png":
+		return "png"
+	case "image/gif":
+		return "gif"
+	case "image/webp":
+		return "webp"
+	default:
+		return "jpg"
+	}
 }
 
 // anthropicSource is the base64 payload shared by "image" and "document" blocks.
@@ -100,7 +130,7 @@ type anthropicResponse struct {
 	} `json:"error"`
 }
 
-func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
+func (s *receiptService) ParseReceipt(ctx context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
 	if s.apiKey == "" {
 		return nil, errors.New("receipt scanning is not configured (missing ANTHROPIC_API_KEY)")
 	}
@@ -140,7 +170,7 @@ func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*doma
 		return nil, err
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, anthropicAPIURL, bytes.NewReader(payload))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicAPIURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -186,6 +216,21 @@ func (s *receiptService) ParseReceipt(imageBytes []byte, mimeType string) (*doma
 	// than letting a made-up slug flow into the expense form.
 	if !domain.IsValidExpenseCategory(scan.Category) {
 		scan.Category = domain.DefaultExpenseCategory
+	}
+
+	// Persisting the image is additive: if storage isn't configured, or the
+	// upload fails, the scan itself is still fully valid and useful — log and
+	// move on rather than failing a request whose OCR already succeeded.
+	if s.storageService != nil {
+		resizedBytes, resizedMime := ResizeReceiptImage(imageBytes, mimeType)
+		path, err := receiptStoragePath(resizedMime)
+		if err != nil {
+			slog.Error("failed to generate receipt storage path", "error", err)
+		} else if err := s.storageService.Upload(ctx, path, resizedBytes, resizedMime); err != nil {
+			slog.Error("failed to upload receipt image", "error", err)
+		} else {
+			scan.ReceiptImagePath = path
+		}
 	}
 
 	return &scan, nil

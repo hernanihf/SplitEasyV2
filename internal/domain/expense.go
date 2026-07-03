@@ -13,10 +13,17 @@ type Expense struct {
 	Description string `gorm:"not null" json:"description"`
 	// Category is one of ExpenseCategorySlugs; it drives the expense's icon
 	// and grouping in the frontend.
-	Category  string    `gorm:"not null;default:other" json:"category"`
-	Amount    int64     `gorm:"not null" json:"amount"` // cents
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Category string `gorm:"not null;default:other" json:"category"`
+	Amount   int64  `gorm:"not null" json:"amount"` // cents
+	// ReceiptImagePath is the Supabase Storage object key for the scanned
+	// receipt image, if any — an internal storage reference, never handed to
+	// clients directly (json:"-"). ReceiptImageURL is a short-lived signed
+	// URL computed at response time from that path; it's never persisted; it
+	// would go stale if it were.
+	ReceiptImagePath *string   `json:"-"`
+	ReceiptImageURL  string    `gorm:"-" json:"receipt_image_url,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 
 	// A deleted expense is excluded from every normal query (including
 	// balance calculations) by GORM's default scope, but the row — and the

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
@@ -18,25 +20,26 @@ import (
 type fakeExpenseService struct {
 	called bool
 
-	updateErr        error
-	deleteErr        error
-	getErr           error
-	updateCalledWith uint
-	deleteCalledWith uint
-	getCalledWith    uint
+	updateErr           error
+	deleteErr           error
+	getErr              error
+	updateCalledWith    uint
+	deleteCalledWith    uint
+	getCalledWith       uint
+	getReceiptImagePath *string
 }
 
-func (f *fakeExpenseService) AddExpense(_ context.Context, groupID, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
+func (f *fakeExpenseService) AddExpense(_ context.Context, groupID, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput, receiptImagePath *string) (*domain.Expense, error) {
 	f.called = true
-	return &domain.Expense{GroupID: groupID, PaidByID: paidByID, Category: category, Amount: amount}, nil
+	return &domain.Expense{GroupID: groupID, PaidByID: paidByID, Category: category, Amount: amount, ReceiptImagePath: receiptImagePath}, nil
 }
 
-func (f *fakeExpenseService) UpdateExpense(_ context.Context, expenseID, _, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput) (*domain.Expense, error) {
+func (f *fakeExpenseService) UpdateExpense(_ context.Context, expenseID, _, paidByID uint, _, category string, amount int64, _ service.SplitMethod, _ []service.SplitInput, _ []service.ItemInput, receiptImagePath *string) (*domain.Expense, error) {
 	f.updateCalledWith = expenseID
 	if f.updateErr != nil {
 		return nil, f.updateErr
 	}
-	return &domain.Expense{ID: expenseID, PaidByID: paidByID, Category: category, Amount: amount}, nil
+	return &domain.Expense{ID: expenseID, PaidByID: paidByID, Category: category, Amount: amount, ReceiptImagePath: receiptImagePath}, nil
 }
 
 func (f *fakeExpenseService) DeleteExpense(_ context.Context, expenseID, _ uint) error {
@@ -49,7 +52,7 @@ func (f *fakeExpenseService) GetExpense(_ context.Context, expenseID uint) (*dom
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
-	return &domain.Expense{ID: expenseID}, nil
+	return &domain.Expense{ID: expenseID, ReceiptImagePath: f.getReceiptImagePath}, nil
 }
 
 func (f *fakeExpenseService) GetGroupExpenses(_ context.Context, _ uint) ([]domain.Expense, error) {
@@ -69,7 +72,7 @@ func addExpenseRequest(t *testing.T, authUserID uint, body AddExpenseRequest) *h
 
 	rec := httptest.NewRecorder()
 	fake := &fakeExpenseService{}
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{})
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.AddExpense(rec, req)
 	return rec
 }
@@ -137,7 +140,7 @@ func updateExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{})
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.UpdateExpense(rec, req)
 	return rec
 }
@@ -179,7 +182,7 @@ func deleteExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{})
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.DeleteExpense(rec, req)
 	return rec
 }
@@ -211,7 +214,25 @@ func TestDeleteExpense_MapsNotAPartyTo403(t *testing.T) {
 	}
 }
 
-func getExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID string, authUserID uint) *httptest.ResponseRecorder {
+// fakeStorageService is a service.StorageService test double for the
+// signed-URL generation in GetExpense.
+type fakeStorageService struct {
+	signErr error
+	signURL string
+}
+
+func (f *fakeStorageService) Upload(_ context.Context, _ string, _ []byte, _ string) error {
+	return nil
+}
+
+func (f *fakeStorageService) SignedURL(_ context.Context, _ string, _ time.Duration) (string, error) {
+	if f.signErr != nil {
+		return "", f.signErr
+	}
+	return f.signURL, nil
+}
+
+func getExpenseRequest(t *testing.T, fake *fakeExpenseService, storage service.StorageService, expenseID string, authUserID uint) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/expenses/"+expenseID, nil)
@@ -219,14 +240,14 @@ func getExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID string,
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{})
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, storage)
 	h.GetExpense(rec, req)
 	return rec
 }
 
 func TestGetExpense_Success(t *testing.T) {
 	fake := &fakeExpenseService{}
-	rec := getExpenseRequest(t, fake, "11", 1)
+	rec := getExpenseRequest(t, fake, nil, "11", 1)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -237,8 +258,61 @@ func TestGetExpense_Success(t *testing.T) {
 
 func TestGetExpense_MapsNotFoundTo404(t *testing.T) {
 	fake := &fakeExpenseService{getErr: service.ErrExpenseNotFound}
-	rec := getExpenseRequest(t, fake, "11", 1)
+	rec := getExpenseRequest(t, fake, nil, "11", 1)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetExpense_GeneratesSignedURLForReceiptImage(t *testing.T) {
+	path := "abc123.jpg"
+	fake := &fakeExpenseService{getReceiptImagePath: &path}
+	storage := &fakeStorageService{signURL: "https://example.supabase.co/storage/v1/object/sign/receipts/abc123.jpg?token=xyz"}
+
+	rec := getExpenseRequest(t, fake, storage, "11", 1)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body domain.Expense
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body.ReceiptImageURL != storage.signURL {
+		t.Errorf("expected receipt_image_url %q, got %q", storage.signURL, body.ReceiptImageURL)
+	}
+}
+
+func TestGetExpense_OmitsReceiptURLWhenSigningFails(t *testing.T) {
+	path := "abc123.jpg"
+	fake := &fakeExpenseService{getReceiptImagePath: &path}
+	storage := &fakeStorageService{signErr: errors.New("network error")}
+
+	rec := getExpenseRequest(t, fake, storage, "11", 1)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 even when signing fails, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body domain.Expense
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body.ReceiptImageURL != "" {
+		t.Errorf("expected no receipt_image_url when signing fails, got %q", body.ReceiptImageURL)
+	}
+}
+
+func TestGetExpense_OmitsReceiptURLWhenNoReceiptImage(t *testing.T) {
+	fake := &fakeExpenseService{}
+	storage := &fakeStorageService{signURL: "https://example.com/should-not-be-called"}
+
+	rec := getExpenseRequest(t, fake, storage, "11", 1)
+
+	var body domain.Expense
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body.ReceiptImageURL != "" {
+		t.Errorf("expected no receipt_image_url when the expense has no receipt image, got %q", body.ReceiptImageURL)
 	}
 }

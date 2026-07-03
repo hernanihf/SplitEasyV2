@@ -3,21 +3,29 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
+// receiptSignedURLTTL is how long a "view receipt" link stays valid — long
+// enough for a user to open it from the expense detail screen, short enough
+// that a leaked link doesn't stay live for long.
+const receiptSignedURLTTL = 10 * time.Minute
+
 type ExpenseHandler struct {
 	expenseService service.ExpenseService
 	groupService   service.GroupService
+	storageService service.StorageService // nil when Supabase Storage isn't configured
 }
 
-func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService) *ExpenseHandler {
-	return &ExpenseHandler{expenseService, groupService}
+func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService, storageService service.StorageService) *ExpenseHandler {
+	return &ExpenseHandler{expenseService, groupService, storageService}
 }
 
 // isCallerInSplits reports whether userID is one of the split participants.
@@ -57,6 +65,10 @@ type AddExpenseRequest struct {
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
 	Items       []ItemInputRequest  `json:"items"`
+	// ReceiptImagePath, if set, is the storage path returned by a prior
+	// POST /receipts/scan call — carries the scanned image over to the
+	// expense it was scanned for.
+	ReceiptImagePath *string `json:"receipt_image_path,omitempty"`
 }
 
 // AddExpense godoc
@@ -129,6 +141,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		service.SplitMethod(req.SplitMethod),
 		splitInputs,
 		items,
+		req.ReceiptImagePath,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -146,6 +159,9 @@ type UpdateExpenseRequest struct {
 	SplitMethod string              `json:"split_method" example:"equal" enums:"equal,percentage,fixed,shares"`
 	Splits      []SplitInputRequest `json:"splits"`
 	Items       []ItemInputRequest  `json:"items"`
+	// ReceiptImagePath: omit the field to leave the expense's existing image
+	// (if any) untouched; include it (even as "") to replace it.
+	ReceiptImagePath *string `json:"receipt_image_path,omitempty"`
 }
 
 // UpdateExpense godoc
@@ -213,6 +229,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		service.SplitMethod(req.SplitMethod),
 		splitInputs,
 		items,
+		req.ReceiptImagePath,
 	)
 	if err != nil {
 		switch {
@@ -302,6 +319,17 @@ func (h *ExpenseHandler) GetExpense(w http.ResponseWriter, r *http.Request) {
 
 	if !authorizeGroupAccess(w, r, h.groupService, expense.GroupID) {
 		return
+	}
+
+	// Best-effort: a failed signing shouldn't fail the whole GET, since the
+	// rest of the expense is still valid — the "view receipt" affordance just
+	// won't appear.
+	if expense.ReceiptImagePath != nil && h.storageService != nil {
+		if url, err := h.storageService.SignedURL(r.Context(), *expense.ReceiptImagePath, receiptSignedURLTTL); err != nil {
+			slog.Error("failed to sign receipt image url", "error", err)
+		} else {
+			expense.ReceiptImageURL = url
+		}
 	}
 
 	writeJSON(w, http.StatusOK, expense)

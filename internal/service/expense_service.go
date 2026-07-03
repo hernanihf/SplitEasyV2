@@ -52,12 +52,16 @@ var (
 )
 
 type ExpenseService interface {
-	AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
+	// receiptImagePath is nil when the expense wasn't created from a receipt
+	// scan (or the scan's image wasn't persisted for whatever reason).
+	AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput, receiptImagePath *string) (*domain.Expense, error)
 	// UpdateExpense replaces an existing expense's fields, split, and items.
 	// callerID must be the current payer or a current split participant —
 	// checked against the expense as it exists now, before any of these
-	// changes are applied.
-	UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error)
+	// changes are applied. receiptImagePath is nil to leave the existing
+	// image (if any) untouched — the edit form doesn't always carry it
+	// forward — or non-nil to set/replace it.
+	UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput, receiptImagePath *string) (*domain.Expense, error)
 	// DeleteExpense soft-deletes an expense. Same authorization as Update.
 	DeleteExpense(ctx context.Context, expenseID, callerID uint) error
 	// GetExpense fetches a single expense by id. Unlike Update/Delete, there's
@@ -163,7 +167,7 @@ func isPayerOrSplitParticipant(userID uint, expense *domain.Expense) bool {
 	return false
 }
 
-func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
+func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput, receiptImagePath *string) (*domain.Expense, error) {
 	group, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("group not found")
@@ -180,11 +184,12 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 	}
 
 	expense := &domain.Expense{
-		GroupID:     groupID,
-		PaidByID:    paidByID,
-		Description: description,
-		Category:    category,
-		Amount:      amount,
+		GroupID:          groupID,
+		PaidByID:         paidByID,
+		Description:      description,
+		Category:         category,
+		Amount:           amount,
+		ReceiptImagePath: receiptImagePath,
 	}
 
 	if err := s.expenseRepo.CreateWithSplits(ctx, expense, splits, domainItems); err != nil {
@@ -196,7 +201,7 @@ func (s *expenseService) AddExpense(ctx context.Context, groupID, paidByID uint,
 	return expense, nil
 }
 
-func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput) (*domain.Expense, error) {
+func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID, paidByID uint, description, category string, amount int64, method SplitMethod, splitInputs []SplitInput, items []ItemInput, receiptImagePath *string) (*domain.Expense, error) {
 	existing, err := s.expenseRepo.GetByID(ctx, expenseID)
 	if err != nil {
 		return nil, ErrExpenseNotFound
@@ -232,6 +237,13 @@ func (s *expenseService) UpdateExpense(ctx context.Context, expenseID, callerID,
 	existing.Description = description
 	existing.Category = category
 	existing.Amount = amount
+	// nil means "not carried in this request" — leave whatever's already
+	// there (e.g. the edit form re-submits without ever having fetched the
+	// image path). Non-nil replaces it, including with an empty string if a
+	// caller ever wants to explicitly clear it.
+	if receiptImagePath != nil {
+		existing.ReceiptImagePath = receiptImagePath
+	}
 
 	if err := s.expenseRepo.UpdateWithSplits(ctx, existing, splits, domainItems); err != nil {
 		return nil, err

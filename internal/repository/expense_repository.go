@@ -86,10 +86,11 @@ func (r *expenseRepository) UpdateWithSplits(ctx context.Context, expense *domai
 		// field — an empty description, in principle — is still written
 		// instead of silently skipped.
 		if err := tx.Model(&domain.Expense{}).Where("id = ?", expense.ID).Updates(map[string]interface{}{
-			"paid_by_id":  expense.PaidByID,
-			"description": expense.Description,
-			"category":    expense.Category,
-			"amount":      expense.Amount,
+			"paid_by_id":         expense.PaidByID,
+			"description":        expense.Description,
+			"category":           expense.Category,
+			"amount":             expense.Amount,
+			"receipt_image_path": expense.ReceiptImagePath,
 		}).Error; err != nil {
 			return err
 		}

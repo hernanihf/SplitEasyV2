@@ -56,7 +56,7 @@ func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
 	// bytes instead.
 	mimeType := http.DetectContentType(imageBytes)
 
-	scan, err := h.receiptService.ParseReceipt(imageBytes, mimeType)
+	scan, err := h.receiptService.ParseReceipt(r.Context(), imageBytes, mimeType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
