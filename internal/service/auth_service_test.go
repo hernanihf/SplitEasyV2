@@ -41,8 +41,9 @@ type fakeUserRepoForAuth struct {
 	usersByID map[uint]*domain.User
 }
 
-func (f *fakeUserRepoForAuth) Create(_ context.Context, _ *domain.User) error { return nil }
-func (f *fakeUserRepoForAuth) Update(_ context.Context, _ *domain.User) error { return nil }
+func (f *fakeUserRepoForAuth) Create(_ context.Context, _ *domain.User) error            { return nil }
+func (f *fakeUserRepoForAuth) Update(_ context.Context, _ *domain.User) error            { return nil }
+func (f *fakeUserRepoForAuth) UpdatePushEnabled(_ context.Context, _ uint, _ bool) error { return nil }
 
 func (f *fakeUserRepoForAuth) GetByEmail(_ context.Context, _ string) (*domain.User, error) {
 	return nil, errors.New("not implemented")

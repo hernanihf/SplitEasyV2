@@ -72,7 +72,7 @@ func addExpenseRequest(t *testing.T, authUserID uint, body AddExpenseRequest) *h
 
 	rec := httptest.NewRecorder()
 	fake := &fakeExpenseService{}
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
 	h.AddExpense(rec, req)
 	return rec
 }
@@ -140,7 +140,7 @@ func updateExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
 	h.UpdateExpense(rec, req)
 	return rec
 }
@@ -182,7 +182,7 @@ func deleteExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
 	h.DeleteExpense(rec, req)
 	return rec
 }
@@ -240,7 +240,7 @@ func getExpenseRequest(t *testing.T, fake *fakeExpenseService, storage service.S
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, storage)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, storage, nil)
 	h.GetExpense(rec, req)
 	return rec
 }

@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN push_enabled BOOLEAN NOT NULL DEFAULT true;

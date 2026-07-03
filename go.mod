@@ -21,6 +21,7 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.8.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
+	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
@@ -39,6 +40,7 @@ require (
 	github.com/swaggo/files v0.0.0-20220610200504-28940afbdbfe // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/image v0.43.0 // indirect
 	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/net v0.55.0 // indirect

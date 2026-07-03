@@ -281,6 +281,12 @@ definitions:
         type: integer
       name:
         type: string
+      push_enabled:
+        description: |-
+          PushEnabled is the user's own preference, checked before sending any
+          push notification — separate from whether they have any subscribed
+          devices (PushSubscription rows).
+        type: boolean
       updated_at:
         type: string
     type: object
@@ -378,6 +384,12 @@ definitions:
       refresh_token:
         type: string
     type: object
+  handler.SetPushPreferenceRequest:
+    properties:
+      push_enabled:
+        example: true
+        type: boolean
+    type: object
   handler.SettleDebtRequest:
     properties:
       amount:
@@ -399,11 +411,27 @@ definitions:
         example: 50
         type: number
     type: object
+  handler.SubscribeRequest:
+    properties:
+      auth:
+        type: string
+      endpoint:
+        example: https://fcm.googleapis.com/fcm/send/...
+        type: string
+      p256dh:
+        type: string
+    type: object
   handler.TokenResponse:
     properties:
       access_token:
         type: string
       refresh_token:
+        type: string
+    type: object
+  handler.UnsubscribeRequest:
+    properties:
+      endpoint:
+        example: https://fcm.googleapis.com/fcm/send/...
         type: string
     type: object
   handler.UpdateExpenseRequest:
@@ -1253,6 +1281,67 @@ paths:
       summary: Home summary
       tags:
       - summary
+  /push/subscribe:
+    delete:
+      consumes:
+      - application/json
+      description: Removes this browser/device's push subscription (e.g. when the
+        user disables push and wants the device forgotten).
+      parameters:
+      - description: Endpoint to remove
+        in: body
+        name: subscription
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UnsubscribeRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Remove a push subscription
+      tags:
+      - push
+    post:
+      consumes:
+      - application/json
+      description: Registers (or re-registers) this browser/device for push notifications.
+        Each user can have up to 10 subscriptions.
+      parameters:
+      - description: Push subscription
+        in: body
+        name: subscription
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SubscribeRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Register a push subscription
+      tags:
+      - push
   /receipts/scan:
     post:
       consumes:
@@ -1487,6 +1576,41 @@ paths:
       security:
       - JWT: []
       summary: Get the authenticated user
+      tags:
+      - users
+  /users/me/push-preference:
+    patch:
+      consumes:
+      - application/json
+      description: Sets whether the authenticated user receives push notifications
+        for group activity. Doesn't touch existing device subscriptions — disabling
+        just stops sends, so re-enabling later doesn't need the browser permission
+        prompt again.
+      parameters:
+      - description: Push preference
+        in: body
+        name: preference
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SetPushPreferenceRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Enable or disable push notifications
       tags:
       - users
 securityDefinitions:

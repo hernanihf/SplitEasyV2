@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
@@ -16,6 +17,7 @@ type CommentHandler struct {
 	expenseService service.ExpenseService
 	balanceService service.BalanceService
 	groupService   service.GroupService
+	pushService    service.PushService
 }
 
 func NewCommentHandler(
@@ -23,8 +25,9 @@ func NewCommentHandler(
 	expenseService service.ExpenseService,
 	balanceService service.BalanceService,
 	groupService service.GroupService,
+	pushService service.PushService,
 ) *CommentHandler {
-	return &CommentHandler{commentService, expenseService, balanceService, groupService}
+	return &CommentHandler{commentService, expenseService, balanceService, groupService, pushService}
 }
 
 type AddCommentRequest struct {
@@ -89,6 +92,10 @@ func (h *CommentHandler) AddExpenseComment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, func(actorName string) string {
+		return fmt.Sprintf("%s commented: %q", actorName, req.Body)
+	})
 
 	writeJSON(w, http.StatusCreated, comment)
 }
@@ -195,6 +202,10 @@ func (h *CommentHandler) AddSettlementComment(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	notifyGroupMembersAsync(h.pushService, settlement.GroupID, userID, func(actorName string) string {
+		return fmt.Sprintf("%s commented: %q", actorName, req.Body)
+	})
 
 	writeJSON(w, http.StatusCreated, comment)
 }

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
@@ -22,10 +23,11 @@ type ExpenseHandler struct {
 	expenseService service.ExpenseService
 	groupService   service.GroupService
 	storageService service.StorageService // nil when Supabase Storage isn't configured
+	pushService    service.PushService
 }
 
-func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService, storageService service.StorageService) *ExpenseHandler {
-	return &ExpenseHandler{expenseService, groupService, storageService}
+func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService, storageService service.StorageService, pushService service.PushService) *ExpenseHandler {
+	return &ExpenseHandler{expenseService, groupService, storageService, pushService}
 }
 
 // isCallerInSplits reports whether userID is one of the split participants.
@@ -148,6 +150,10 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	notifyGroupMembersAsync(h.pushService, req.GroupID, userID, func(actorName string) string {
+		return fmt.Sprintf("%s added an expense: %q", actorName, req.Description)
+	})
+
 	writeJSON(w, http.StatusCreated, expense)
 }
 
@@ -243,6 +249,10 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, func(actorName string) string {
+		return fmt.Sprintf("%s edited an expense: %q", actorName, req.Description)
+	})
+
 	writeJSON(w, http.StatusOK, expense)
 }
 
@@ -273,8 +283,18 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetched before deleting purely to know which group to notify —
+	// DeleteExpense itself only needs the id, and a soft-deleted expense is
+	// excluded from GetExpense afterward anyway.
+	existing, _ := h.expenseService.GetExpense(r.Context(), uint(expenseID))
+
 	switch err := h.expenseService.DeleteExpense(r.Context(), uint(expenseID), userID); {
 	case err == nil:
+		if existing != nil {
+			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, func(actorName string) string {
+				return fmt.Sprintf("%s deleted an expense: %q", actorName, existing.Description)
+			})
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, service.ErrExpenseNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)

@@ -92,7 +92,7 @@ func settleDebtRequest(t *testing.T, authUserID uint, body SettleDebtRequest) *h
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{})
+	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{}, nil)
 	h.SettleDebt(rec, req)
 	return rec
 }
@@ -129,7 +129,7 @@ func deleteSettlementRequest(t *testing.T, fake *fakeBalanceService, settlementI
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{})
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.DeleteSettlement(rec, req)
 	return rec
 }
@@ -172,7 +172,7 @@ func getSettlementRequest(t *testing.T, fake *fakeBalanceService, settlementID s
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{})
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.GetSettlement(rec, req)
 	return rec
 }

@@ -22,6 +22,9 @@ func (f *fakeUserRepoForGroups) GetByID(_ context.Context, id uint) (*domain.Use
 	}
 	return f.user, nil
 }
+func (f *fakeUserRepoForGroups) UpdatePushEnabled(_ context.Context, _ uint, _ bool) error {
+	return nil
+}
 
 var errExpected = errString("not found")
 

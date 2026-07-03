@@ -1230,6 +1230,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/push/subscribe": {
+            "post": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Registers (or re-registers) this browser/device for push notifications. Each user can have up to 10 subscriptions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Register a push subscription",
+                "parameters": [
+                    {
+                        "description": "Push subscription",
+                        "name": "subscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SubscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Removes this browser/device's push subscription (e.g. when the user disables push and wants the device forgotten).",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Remove a push subscription",
+                "parameters": [
+                    {
+                        "description": "Endpoint to remove",
+                        "name": "subscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UnsubscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/receipts/scan": {
             "post": {
                 "security": [
@@ -1582,6 +1676,57 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/push-preference": {
+            "patch": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Sets whether the authenticated user receives push notifications for group activity. Doesn't touch existing device subscriptions — disabling just stops sends, so re-enabling later doesn't need the browser permission prompt again.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Enable or disable push notifications",
+                "parameters": [
+                    {
+                        "description": "Push preference",
+                        "name": "preference",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SetPushPreferenceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "string"
                         }
@@ -1988,6 +2133,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "push_enabled": {
+                    "description": "PushEnabled is the user's own preference, checked before sending any\npush notification — separate from whether they have any subscribed\ndevices (PushSubscription rows).",
+                    "type": "boolean"
+                },
                 "updated_at": {
                     "type": "string"
                 }
@@ -2125,6 +2274,15 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.SetPushPreferenceRequest": {
+            "type": "object",
+            "properties": {
+                "push_enabled": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "handler.SettleDebtRequest": {
             "type": "object",
             "properties": {
@@ -2155,6 +2313,21 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.SubscribeRequest": {
+            "type": "object",
+            "properties": {
+                "auth": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string",
+                    "example": "https://fcm.googleapis.com/fcm/send/..."
+                },
+                "p256dh": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.TokenResponse": {
             "type": "object",
             "properties": {
@@ -2163,6 +2336,15 @@ const docTemplate = `{
                 },
                 "refresh_token": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.UnsubscribeRequest": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "type": "string",
+                    "example": "https://fcm.googleapis.com/fcm/send/..."
                 }
             }
         },

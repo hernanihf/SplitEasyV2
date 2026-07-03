@@ -64,6 +64,7 @@ func main() {
 	config.InitAuth()
 	config.InitAnthropic()
 	config.InitSupabase()
+	config.InitVAPID()
 
 	// Refresh tokens are stored in Redis when available (REDIS_URL), so a
 	// stolen/rotated token can be revoked from any instance and survives
@@ -83,6 +84,7 @@ func main() {
 	expenseRepo := repository.NewExpenseRepository(db)
 	settlementRepo := repository.NewSettlementRepository(db)
 	commentRepo := repository.NewCommentRepository(db)
+	pushSubRepo := repository.NewPushSubscriptionRepository(db)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
@@ -97,16 +99,21 @@ func main() {
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel, storageService)
 	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
 	commentService := service.NewCommentService(commentRepo)
+	pushService := service.NewPushService(groupRepo, userRepo, pushSubRepo, http.DefaultClient, config.VAPIDPublicKey, config.VAPIDPrivateKey, config.VAPIDSubject)
+	if config.VAPIDPublicKey == "" || config.VAPIDPrivateKey == "" {
+		slog.Warn("VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set, push notifications will not be sent")
+	}
 
 	// 3. Init Handlers
-	userHandler := handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService, pushService)
 	groupHandler := handler.NewGroupHandler(groupService)
-	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService)
-	balanceHandler := handler.NewBalanceHandler(balanceService, groupService)
+	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService, pushService)
+	balanceHandler := handler.NewBalanceHandler(balanceService, groupService, pushService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
-	commentHandler := handler.NewCommentHandler(commentService, expenseService, balanceService, groupService)
+	commentHandler := handler.NewCommentHandler(commentService, expenseService, balanceService, groupService, pushService)
+	pushHandler := handler.NewPushHandler(pushService)
 
 	// Per-user rate limiter for the paid receipt-scan endpoint.
 	scanLimiter := mymiddleware.NewScanRateLimiterFromEnv()
@@ -169,6 +176,11 @@ func main() {
 
 			// Users
 			r.Get("/users/me", userHandler.GetMe)
+			r.Patch("/users/me/push-preference", userHandler.SetPushPreference)
+
+			// Push subscriptions
+			r.Post("/push/subscribe", pushHandler.Subscribe)
+			r.Delete("/push/subscribe", pushHandler.Unsubscribe)
 
 			// Groups
 			r.Post("/groups", groupHandler.CreateGroup)

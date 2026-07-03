@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
@@ -14,10 +15,11 @@ import (
 type BalanceHandler struct {
 	balanceService service.BalanceService
 	groupService   service.GroupService
+	pushService    service.PushService
 }
 
-func NewBalanceHandler(balanceService service.BalanceService, groupService service.GroupService) *BalanceHandler {
-	return &BalanceHandler{balanceService, groupService}
+func NewBalanceHandler(balanceService service.BalanceService, groupService service.GroupService, pushService service.PushService) *BalanceHandler {
+	return &BalanceHandler{balanceService, groupService, pushService}
 }
 
 // GetGroupBalances godoc
@@ -188,6 +190,10 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	notifyGroupMembersAsync(h.pushService, uint(groupID), userID, func(actorName string) string {
+		return fmt.Sprintf("%s recorded a payment", actorName)
+	})
+
 	writeJSON(w, http.StatusCreated, settlement)
 }
 
@@ -218,8 +224,16 @@ func (h *BalanceHandler) DeleteSettlement(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Fetched before deleting purely to know which group to notify.
+	existing, _ := h.balanceService.GetSettlement(r.Context(), uint(settlementID))
+
 	switch err := h.balanceService.DeleteSettlement(r.Context(), uint(settlementID), userID); {
 	case err == nil:
+		if existing != nil {
+			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, func(actorName string) string {
+				return fmt.Sprintf("%s deleted a payment", actorName)
+			})
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, service.ErrSettlementNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)

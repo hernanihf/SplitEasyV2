@@ -13,6 +13,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uint) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
+	UpdatePushEnabled(ctx context.Context, userID uint, enabled bool) error
 }
 
 type userRepository struct {
@@ -47,4 +48,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *userRepository) UpdatePushEnabled(ctx context.Context, userID uint, enabled bool) error {
+	return r.db.WithContext(ctx).Model(&domain.User{}).Where("id = ?", userID).
+		Update("push_enabled", enabled).Error
 }

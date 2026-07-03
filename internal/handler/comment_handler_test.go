@@ -73,7 +73,7 @@ func newCommentHandler(commentSvc *fakeCommentService, expenseSvc *fakeExpenseSe
 	if balanceSvc == nil {
 		balanceSvc = &fakeBalanceService{}
 	}
-	return NewCommentHandler(commentSvc, expenseSvc, balanceSvc, fakeGroupServiceForBalance{})
+	return NewCommentHandler(commentSvc, expenseSvc, balanceSvc, fakeGroupServiceForBalance{}, nil)
 }
 
 func addExpenseCommentRequest(t *testing.T, h *CommentHandler, expenseID string, authUserID uint, body AddCommentRequest) *httptest.ResponseRecorder {
