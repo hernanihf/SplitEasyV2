@@ -14,8 +14,8 @@ import (
 )
 
 type fakeUserRepoForPush struct {
-	lastSetUserID uint
-	lastSetValue  bool
+	lastSetUserID                                                     uint
+	lastSetEnabled, lastSetExpenses, lastSetPayments, lastSetComments bool
 }
 
 func (f *fakeUserRepoForPush) Create(_ context.Context, _ *domain.User) error { return nil }
@@ -26,9 +26,12 @@ func (f *fakeUserRepoForPush) GetByEmail(_ context.Context, _ string) (*domain.U
 func (f *fakeUserRepoForPush) GetByID(_ context.Context, _ uint) (*domain.User, error) {
 	return nil, errors.New("not implemented")
 }
-func (f *fakeUserRepoForPush) UpdatePushEnabled(_ context.Context, userID uint, enabled bool) error {
+func (f *fakeUserRepoForPush) UpdatePushPreferences(_ context.Context, userID uint, enabled, expenses, payments, comments bool) error {
 	f.lastSetUserID = userID
-	f.lastSetValue = enabled
+	f.lastSetEnabled = enabled
+	f.lastSetExpenses = expenses
+	f.lastSetPayments = payments
+	f.lastSetComments = comments
 	return nil
 }
 
@@ -61,15 +64,20 @@ func (f *fakePushSubRepo) CountByUserID(_ context.Context, _ uint) (int64, error
 	return f.count, nil
 }
 
-func TestSetPushEnabled_UpdatesUserRepo(t *testing.T) {
+func TestSetPushPreferences_UpdatesUserRepo(t *testing.T) {
 	userRepo := &fakeUserRepoForPush{}
 	svc := NewPushService(&fakeGroupRepo{}, userRepo, &fakePushSubRepo{}, &fakeHTTPDoer{}, "pub", "priv", "sub")
 
-	if err := svc.SetPushEnabled(context.Background(), 7, false); err != nil {
+	if err := svc.SetPushPreferences(context.Background(), 7, false, true, false, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if userRepo.lastSetUserID != 7 || userRepo.lastSetValue != false {
-		t.Errorf("expected UpdatePushEnabled(7, false), got (%d, %v)", userRepo.lastSetUserID, userRepo.lastSetValue)
+	if userRepo.lastSetUserID != 7 ||
+		userRepo.lastSetEnabled != false ||
+		userRepo.lastSetExpenses != true ||
+		userRepo.lastSetPayments != false ||
+		userRepo.lastSetComments != true {
+		t.Errorf("expected UpdatePushPreferences(7, false, true, false, true), got (%d, %v, %v, %v, %v)",
+			userRepo.lastSetUserID, userRepo.lastSetEnabled, userRepo.lastSetExpenses, userRepo.lastSetPayments, userRepo.lastSetComments)
 	}
 }
 
@@ -114,7 +122,7 @@ func TestNotifyGroupMembers_NoopWhenVAPIDNotConfigured(t *testing.T) {
 	groupRepo := &fakeGroupRepo{group: &domain.Group{ID: 1, Name: "Trip"}}
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, &fakePushSubRepo{}, &fakeHTTPDoer{}, "", "", "")
 
-	err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(string) string { return "body" }, nil)
+	err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,9 +135,9 @@ func TestNotifyGroupMembers_ExcludesActorAndDisabledMembers(t *testing.T) {
 		ID:   1,
 		Name: "Trip",
 		Members: []domain.User{
-			{ID: 1, Name: "Alice", PushEnabled: true},  // actor
-			{ID: 2, Name: "Bob", PushEnabled: true},    // recipient
-			{ID: 3, Name: "Carol", PushEnabled: false}, // disabled
+			{ID: 1, Name: "Alice", PushEnabled: true, PushExpensesEnabled: true},  // actor
+			{ID: 2, Name: "Bob", PushEnabled: true, PushExpensesEnabled: true},    // recipient
+			{ID: 3, Name: "Carol", PushEnabled: false, PushExpensesEnabled: true}, // disabled overall
 		},
 	}
 	groupRepo := &fakeGroupRepo{group: group}
@@ -137,7 +145,7 @@ func TestNotifyGroupMembers_ExcludesActorAndDisabledMembers(t *testing.T) {
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, &fakeHTTPDoer{}, "pub", "priv", "sub")
 
 	var gotActorName string
-	err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(actorName string) string {
+	err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(actorName string) string {
 		gotActorName = actorName
 		return "body"
 	}, nil)
@@ -152,6 +160,36 @@ func TestNotifyGroupMembers_ExcludesActorAndDisabledMembers(t *testing.T) {
 	}
 }
 
+func TestNotifyGroupMembers_ExcludesMembersWithCategoryDisabled(t *testing.T) {
+	group := &domain.Group{
+		ID:   1,
+		Name: "Trip",
+		Members: []domain.User{
+			{ID: 1, Name: "Alice", PushEnabled: true, PushExpensesEnabled: true, PushPaymentsEnabled: true}, // actor
+			{ID: 2, Name: "Bob", PushEnabled: true, PushExpensesEnabled: true, PushPaymentsEnabled: false},  // wants expenses, not payments
+		},
+	}
+	groupRepo := &fakeGroupRepo{group: group}
+	subRepo := &fakePushSubRepo{}
+	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, &fakeHTTPDoer{}, "pub", "priv", "sub")
+
+	// A payment notification should skip Bob...
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryPayment, func(string) string { return "body" }, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if subRepo.listedUserIDs != nil {
+		t.Errorf("expected no recipients for a payment notification, got %+v", subRepo.listedUserIDs)
+	}
+
+	// ...but an expense notification should still reach him.
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(subRepo.listedUserIDs) != 1 || subRepo.listedUserIDs[0] != 2 {
+		t.Errorf("expected Bob (id 2) as a recipient for an expense notification, got %+v", subRepo.listedUserIDs)
+	}
+}
+
 func TestNotifyGroupMembers_NoopWhenNoEligibleRecipients(t *testing.T) {
 	group := &domain.Group{
 		ID:      1,
@@ -162,7 +200,7 @@ func TestNotifyGroupMembers_NoopWhenNoEligibleRecipients(t *testing.T) {
 	subRepo := &fakePushSubRepo{}
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, &fakeHTTPDoer{}, "pub", "priv", "sub")
 
-	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(string) string { return "body" }, nil); err != nil {
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if subRepo.listedUserIDs != nil {
@@ -206,8 +244,8 @@ func TestNotifyGroupMembers_SendsToEachSubscription(t *testing.T) {
 		ID:   1,
 		Name: "Trip",
 		Members: []domain.User{
-			{ID: 1, Name: "Alice", PushEnabled: true},
-			{ID: 2, Name: "Bob", PushEnabled: true},
+			{ID: 1, Name: "Alice", PushEnabled: true, PushExpensesEnabled: true},
+			{ID: 2, Name: "Bob", PushEnabled: true, PushExpensesEnabled: true},
 		},
 	}
 	groupRepo := &fakeGroupRepo{group: group}
@@ -218,7 +256,7 @@ func TestNotifyGroupMembers_SendsToEachSubscription(t *testing.T) {
 	doer := &fakeHTTPDoer{response: &http.Response{StatusCode: http.StatusCreated, Body: http.NoBody}}
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, doer, pub, priv, "mailto:test@example.com")
 
-	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(string) string { return "body" }, nil); err != nil {
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if doer.lastReq == nil {
@@ -232,9 +270,12 @@ func TestNotifyGroupMembers_SendsToEachSubscription(t *testing.T) {
 func TestNotifyGroupMembers_CleansUpGoneSubscription(t *testing.T) {
 	pub, priv := realVAPIDKeysForTest(t)
 	group := &domain.Group{
-		ID:      1,
-		Name:    "Trip",
-		Members: []domain.User{{ID: 1, Name: "Alice", PushEnabled: true}, {ID: 2, Name: "Bob", PushEnabled: true}},
+		ID:   1,
+		Name: "Trip",
+		Members: []domain.User{
+			{ID: 1, Name: "Alice", PushEnabled: true, PushExpensesEnabled: true},
+			{ID: 2, Name: "Bob", PushEnabled: true, PushExpensesEnabled: true},
+		},
 	}
 	groupRepo := &fakeGroupRepo{group: group}
 	p256dh, auth := fakeSubscriptionKeys(t)
@@ -244,7 +285,7 @@ func TestNotifyGroupMembers_CleansUpGoneSubscription(t *testing.T) {
 	doer := &fakeHTTPDoer{response: &http.Response{StatusCode: http.StatusGone, Body: http.NoBody}}
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, doer, pub, priv, "mailto:test@example.com")
 
-	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(string) string { return "body" }, nil); err != nil {
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(subRepo.deletedGlobal) != 1 || subRepo.deletedGlobal[0] != "https://push.example/dead" {
@@ -255,9 +296,12 @@ func TestNotifyGroupMembers_CleansUpGoneSubscription(t *testing.T) {
 func TestNotifyGroupMembers_OneFailedSendDoesNotStopOthers(t *testing.T) {
 	pub, priv := realVAPIDKeysForTest(t)
 	group := &domain.Group{
-		ID:      1,
-		Name:    "Trip",
-		Members: []domain.User{{ID: 1, Name: "Alice", PushEnabled: true}, {ID: 2, Name: "Bob", PushEnabled: true}},
+		ID:   1,
+		Name: "Trip",
+		Members: []domain.User{
+			{ID: 1, Name: "Alice", PushEnabled: true, PushExpensesEnabled: true},
+			{ID: 2, Name: "Bob", PushEnabled: true, PushExpensesEnabled: true},
+		},
 	}
 	groupRepo := &fakeGroupRepo{group: group}
 	p256dh, auth := fakeSubscriptionKeys(t)
@@ -271,7 +315,7 @@ func TestNotifyGroupMembers_OneFailedSendDoesNotStopOthers(t *testing.T) {
 	doer := &fakeHTTPDoer{err: errors.New("network error")}
 	svc := NewPushService(groupRepo, &fakeUserRepoForPush{}, subRepo, doer, pub, priv, "mailto:test@example.com")
 
-	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, func(string) string { return "body" }, nil); err != nil {
+	if err := svc.NotifyGroupMembers(context.Background(), 1, 1, PushCategoryExpense, func(string) string { return "body" }, nil); err != nil {
 		t.Fatalf("expected NotifyGroupMembers to swallow send errors, got: %v", err)
 	}
 }

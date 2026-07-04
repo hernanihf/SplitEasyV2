@@ -1746,14 +1746,14 @@ const docTemplate = `{
                         "JWT": []
                     }
                 ],
-                "description": "Sets whether the authenticated user receives push notifications for group activity. Doesn't touch existing device subscriptions — disabling just stops sends, so re-enabling later doesn't need the browser permission prompt again.",
+                "description": "Sets the master push switch plus which categories of group activity (expenses, payments, comments) notify the authenticated user. Doesn't touch existing device subscriptions — disabling just stops sends, so re-enabling later doesn't need the browser permission prompt again. The client always sends its full current state.",
                 "consumes": [
                     "application/json"
                 ],
                 "tags": [
                     "users"
                 ],
-                "summary": "Enable or disable push notifications",
+                "summary": "Set push notification preferences",
                 "parameters": [
                     {
                         "description": "Push preference",
@@ -2197,8 +2197,17 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "push_comments_enabled": {
+                    "type": "boolean"
+                },
                 "push_enabled": {
-                    "description": "PushEnabled is the user's own preference, checked before sending any\npush notification — separate from whether they have any subscribed\ndevices (PushSubscription rows).",
+                    "description": "PushEnabled is the master switch — checked before sending any push\nnotification, separate from whether they have any subscribed devices\n(PushSubscription rows). The three category flags below only matter\nwhile this is also true; they let a user keep push on but tune which\nkinds of group activity actually notify them.",
+                    "type": "boolean"
+                },
+                "push_expenses_enabled": {
+                    "type": "boolean"
+                },
+                "push_payments_enabled": {
                     "type": "boolean"
                 },
                 "updated_at": {
@@ -2341,7 +2350,19 @@ const docTemplate = `{
         "handler.SetPushPreferenceRequest": {
             "type": "object",
             "properties": {
+                "push_comments_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
                 "push_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "push_expenses_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "push_payments_enabled": {
                     "type": "boolean",
                     "example": true
                 }

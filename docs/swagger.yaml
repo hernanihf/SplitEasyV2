@@ -293,11 +293,19 @@ definitions:
         type: integer
       name:
         type: string
+      push_comments_enabled:
+        type: boolean
       push_enabled:
         description: |-
-          PushEnabled is the user's own preference, checked before sending any
-          push notification — separate from whether they have any subscribed
-          devices (PushSubscription rows).
+          PushEnabled is the master switch — checked before sending any push
+          notification, separate from whether they have any subscribed devices
+          (PushSubscription rows). The three category flags below only matter
+          while this is also true; they let a user keep push on but tune which
+          kinds of group activity actually notify them.
+        type: boolean
+      push_expenses_enabled:
+        type: boolean
+      push_payments_enabled:
         type: boolean
       updated_at:
         type: string
@@ -398,7 +406,16 @@ definitions:
     type: object
   handler.SetPushPreferenceRequest:
     properties:
+      push_comments_enabled:
+        example: true
+        type: boolean
       push_enabled:
+        example: true
+        type: boolean
+      push_expenses_enabled:
+        example: true
+        type: boolean
+      push_payments_enabled:
         example: true
         type: boolean
     type: object
@@ -1632,10 +1649,11 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Sets whether the authenticated user receives push notifications
-        for group activity. Doesn't touch existing device subscriptions — disabling
-        just stops sends, so re-enabling later doesn't need the browser permission
-        prompt again.
+      description: Sets the master push switch plus which categories of group activity
+        (expenses, payments, comments) notify the authenticated user. Doesn't touch
+        existing device subscriptions — disabling just stops sends, so re-enabling
+        later doesn't need the browser permission prompt again. The client always
+        sends its full current state.
       parameters:
       - description: Push preference
         in: body
@@ -1660,7 +1678,7 @@ paths:
             type: string
       security:
       - JWT: []
-      summary: Enable or disable push notifications
+      summary: Set push notification preferences
       tags:
       - users
 securityDefinitions:

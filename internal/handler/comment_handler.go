@@ -93,7 +93,7 @@ func (h *CommentHandler) AddExpenseComment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, func(actorName string) string {
+	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, service.PushCategoryComment, func(actorName string) string {
 		return fmt.Sprintf("%s commented: %q", actorName, req.Body)
 	})
 
@@ -203,7 +203,7 @@ func (h *CommentHandler) AddSettlementComment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	notifyGroupMembersAsync(h.pushService, settlement.GroupID, userID, func(actorName string) string {
+	notifyGroupMembersAsync(h.pushService, settlement.GroupID, userID, service.PushCategoryComment, func(actorName string) string {
 		return fmt.Sprintf("%s commented: %q", actorName, req.Body)
 	})
 

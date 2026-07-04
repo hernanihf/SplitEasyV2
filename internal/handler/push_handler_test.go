@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"spliteasy/internal/handler/middleware"
+	"spliteasy/internal/service"
 )
 
 // fakePushService is shared by push_handler_test.go and user_handler_test.go.
@@ -22,13 +23,17 @@ type fakePushService struct {
 	subscribedP256dh, subscribedAuth string
 	unsubscribedUserID               uint
 	unsubscribedEndpoint             string
-	setPushEnabledUserID             uint
-	setPushEnabledValue              bool
+
+	setPreferencesUserID                                                                          uint
+	setPreferencesEnabled, setPreferencesExpenses, setPreferencesPayments, setPreferencesComments bool
 }
 
-func (f *fakePushService) SetPushEnabled(_ context.Context, userID uint, enabled bool) error {
-	f.setPushEnabledUserID = userID
-	f.setPushEnabledValue = enabled
+func (f *fakePushService) SetPushPreferences(_ context.Context, userID uint, enabled, expenses, payments, comments bool) error {
+	f.setPreferencesUserID = userID
+	f.setPreferencesEnabled = enabled
+	f.setPreferencesExpenses = expenses
+	f.setPreferencesPayments = payments
+	f.setPreferencesComments = comments
 	return nil
 }
 
@@ -46,7 +51,7 @@ func (f *fakePushService) Unsubscribe(_ context.Context, userID uint, endpoint s
 	return f.unsubscribeErr
 }
 
-func (f *fakePushService) NotifyGroupMembers(_ context.Context, _, _ uint, _ func(string) string, _ map[string]string) error {
+func (f *fakePushService) NotifyGroupMembers(_ context.Context, _, _ uint, _ service.PushCategory, _ func(string) string, _ map[string]string) error {
 	return nil
 }
 

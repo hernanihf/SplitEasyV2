@@ -28,7 +28,12 @@ func TestSetPushPreference_Success(t *testing.T) {
 	fakePush := &fakePushService{}
 	h := NewUserHandler(fakeUsers, fakePush)
 
-	body, _ := json.Marshal(SetPushPreferenceRequest{PushEnabled: false})
+	body, _ := json.Marshal(SetPushPreferenceRequest{
+		PushEnabled:         false,
+		PushExpensesEnabled: true,
+		PushPaymentsEnabled: false,
+		PushCommentsEnabled: true,
+	})
 	req := authedRequest(http.MethodPatch, "/api/v1/users/me/push-preference", body, 5)
 	rec := httptest.NewRecorder()
 	h.SetPushPreference(rec, req)
@@ -36,8 +41,14 @@ func TestSetPushPreference_Success(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if fakePush.setPushEnabledUserID != 5 || fakePush.setPushEnabledValue != false {
-		t.Errorf("expected SetPushEnabled(5, false), got (%d, %v)", fakePush.setPushEnabledUserID, fakePush.setPushEnabledValue)
+	if fakePush.setPreferencesUserID != 5 ||
+		fakePush.setPreferencesEnabled != false ||
+		fakePush.setPreferencesExpenses != true ||
+		fakePush.setPreferencesPayments != false ||
+		fakePush.setPreferencesComments != true {
+		t.Errorf("expected SetPushPreferences(5, false, true, false, true), got (%d, %v, %v, %v, %v)",
+			fakePush.setPreferencesUserID, fakePush.setPreferencesEnabled,
+			fakePush.setPreferencesExpenses, fakePush.setPreferencesPayments, fakePush.setPreferencesComments)
 	}
 }
 

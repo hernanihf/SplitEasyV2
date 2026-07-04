@@ -43,12 +43,15 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 type SetPushPreferenceRequest struct {
-	PushEnabled bool `json:"push_enabled" example:"true"`
+	PushEnabled         bool `json:"push_enabled" example:"true"`
+	PushExpensesEnabled bool `json:"push_expenses_enabled" example:"true"`
+	PushPaymentsEnabled bool `json:"push_payments_enabled" example:"true"`
+	PushCommentsEnabled bool `json:"push_comments_enabled" example:"true"`
 }
 
 // SetPushPreference godoc
-// @Summary      Enable or disable push notifications
-// @Description  Sets whether the authenticated user receives push notifications for group activity. Doesn't touch existing device subscriptions — disabling just stops sends, so re-enabling later doesn't need the browser permission prompt again.
+// @Summary      Set push notification preferences
+// @Description  Sets the master push switch plus which categories of group activity (expenses, payments, comments) notify the authenticated user. Doesn't touch existing device subscriptions — disabling just stops sends, so re-enabling later doesn't need the browser permission prompt again. The client always sends its full current state.
 // @Tags         users
 // @Accept       json
 // @Param        preference  body  SetPushPreferenceRequest  true  "Push preference"
@@ -71,7 +74,7 @@ func (h *UserHandler) SetPushPreference(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.pushService.SetPushEnabled(r.Context(), userID, req.PushEnabled); err != nil {
+	if err := h.pushService.SetPushPreferences(r.Context(), userID, req.PushEnabled, req.PushExpensesEnabled, req.PushPaymentsEnabled, req.PushCommentsEnabled); err != nil {
 		internalError(w, "failed to update push preference", err)
 		return
 	}

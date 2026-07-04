@@ -190,7 +190,7 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notifyGroupMembersAsync(h.pushService, uint(groupID), userID, func(actorName string) string {
+	notifyGroupMembersAsync(h.pushService, uint(groupID), userID, service.PushCategoryPayment, func(actorName string) string {
 		return fmt.Sprintf("%s recorded a payment", actorName)
 	})
 
@@ -230,7 +230,7 @@ func (h *BalanceHandler) DeleteSettlement(w http.ResponseWriter, r *http.Request
 	switch err := h.balanceService.DeleteSettlement(r.Context(), uint(settlementID), userID); {
 	case err == nil:
 		if existing != nil {
-			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, func(actorName string) string {
+			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, service.PushCategoryPayment, func(actorName string) string {
 				return fmt.Sprintf("%s deleted a payment", actorName)
 			})
 		}

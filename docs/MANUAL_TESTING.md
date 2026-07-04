@@ -561,16 +561,23 @@ correctamente, y maneja la respuesta.
 
 ### Caso 6.1 — Activar/desactivar la preferencia de un usuario
 
+El PATCH no admite campos parciales — siempre hay que mandar los 4 juntos
+(`push_enabled` es el interruptor general; los otros tres filtran por categoría
+de actividad y solo importan mientras el general está en `true`, ver Caso 6.8):
+
 ```bash
 curl -s -X PATCH http://localhost:8080/api/v1/users/me/push-preference \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"push_enabled":false}' -w "\n%{http_code}\n"
+  -d '{"push_enabled":false,"push_expenses_enabled":true,"push_payments_enabled":true,"push_comments_enabled":true}' \
+  -w "\n%{http_code}\n"
 
-docker exec spliteasy_db psql -U postgres -d spliteasy -c "SELECT id, push_enabled FROM users WHERE id=1;"
+docker exec spliteasy_db psql -U postgres -d spliteasy -c \
+  "SELECT id, push_enabled, push_expenses_enabled, push_payments_enabled, push_comments_enabled FROM users WHERE id=1;"
 ```
 
-**Esperado**: `204`, y `push_enabled` en `f` en la fila de Alice. Volver a poner
-`true` antes de seguir con los casos siguientes (si no, Alice queda excluida de
+**Esperado**: `204`, y `push_enabled` en `f` en la fila de Alice (las otras tres
+columnas quedan como se mandaron). Volver a poner `push_enabled:true` antes de
+seguir con los casos siguientes (si no, Alice queda excluida de
 `NotifyGroupMembers` — ver Caso 6.5).
 
 ### Caso 6.2 — Registrar una suscripción
@@ -689,6 +696,39 @@ o de una llamada HTTP saliente hacia el endpoint de Bob).
 > `internal/service/push_service_test.go`) — repetirla a mano por `curl` es más para
 > confirmar el comportamiento end-to-end que para encontrar bugs nuevos.
 
+### Caso 6.8 — Preferencia por categoría (gastos / pagos / comentarios)
+
+Con Bob suscripto, desactivarle solo los pagos (dejando el resto en `true`):
+
+```bash
+curl -s -X PATCH http://localhost:8080/api/v1/users/me/push-preference \
+  -H "Authorization: Bearer $TOKEN_BOB" -H "Content-Type: application/json" \
+  -d '{"push_enabled":true,"push_expenses_enabled":true,"push_payments_enabled":false,"push_comments_enabled":true}' \
+  -w "\n%{http_code}\n"
+```
+
+Con Alice como actora en un grupo compartido con Bob:
+
+```bash
+# Un pago no debería generar ningún intento de envío hacia Bob
+curl -s -X POST http://localhost:8080/api/v1/groups/1/settlements \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"from_user_id":2,"to_user_id":1,"amount":100}' -o /dev/null
+
+# Un gasto sí debería generar el intento (Bob mantiene push_expenses_enabled=true)
+curl -s -X POST http://localhost:8080/api/v1/expenses \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"group_id":1,"paid_by_id":1,"description":"Test category filter","amount":100,"split_method":"equal"}' -o /dev/null
+```
+
+**Esperado**: tras el pago, ningún log `push send failed` con el endpoint de
+Bob; tras el gasto, sí aparece (fallando por endpoint falso, eso es lo
+esperado — lo que importa es que *intentó* mandarlo). Volver a poner
+`push_payments_enabled:true` antes de seguir.
+
+> Cubierto por `TestNotifyGroupMembers_ExcludesMembersWithCategoryDisabled` en
+> `internal/service/push_service_test.go`.
+
 ---
 
 ## 7. Purga automática de gastos borrados
@@ -796,6 +836,7 @@ docker compose down                 # detener PostgreSQL
 | 6.5 | Disparo fire-and-forget al crear gasto | `POST /expenses` (efecto lateral) | ✅ verificado (logs) |
 | 6.6 | Limpieza automática de suscripción muerta | (efecto lateral) | ✅ verificado |
 | 6.7 | Exclusión de actor / push_enabled=false | (efecto lateral) | ✅ cubierto por tests automatizados |
+| 6.8 | Preferencia por categoría (gastos/pagos/comentarios) | `PATCH /users/me/push-preference` | ✅ verificado |
 | 7.1 | Purga automática + cascada + limpieza de imagen | (job en background) | ✅ verificado |
 | 7.2 | Retención de 60 días respeta el corte | (job en background) | ✅ verificado |
 | 7.3 | Coordinación entre instancias (`job_runs.TryClaim`) | (job en background) | ✅ verificado |

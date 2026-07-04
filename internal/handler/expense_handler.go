@@ -150,7 +150,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notifyGroupMembersAsync(h.pushService, req.GroupID, userID, func(actorName string) string {
+	notifyGroupMembersAsync(h.pushService, req.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 		return fmt.Sprintf("%s added an expense: %q", actorName, req.Description)
 	})
 
@@ -249,7 +249,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, func(actorName string) string {
+	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 		return fmt.Sprintf("%s edited an expense: %q", actorName, req.Description)
 	})
 
@@ -291,7 +291,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	switch err := h.expenseService.DeleteExpense(r.Context(), uint(expenseID), userID); {
 	case err == nil:
 		if existing != nil {
-			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, func(actorName string) string {
+			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 				return fmt.Sprintf("%s deleted an expense: %q", actorName, existing.Description)
 			})
 		}
