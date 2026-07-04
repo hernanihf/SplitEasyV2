@@ -22,7 +22,7 @@ type User struct {
 	// group — best-effort guessed from their Google account locale at
 	// login (see auth_service.go's currencyFromLocale), never validated
 	// against anything the user does afterward.
-	DefaultCurrency string    `gorm:"not null;default:'USD'" json:"default_currency"`
+	DefaultCurrency string    `gorm:"not null;default:'ARS'" json:"default_currency"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

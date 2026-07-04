@@ -1,0 +1,1 @@
+ALTER TABLE users ALTER COLUMN default_currency SET DEFAULT 'ARS';

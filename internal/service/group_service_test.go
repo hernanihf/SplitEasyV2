@@ -60,7 +60,7 @@ func TestCreateGroup_GeneratesInviteToken(t *testing.T) {
 	}
 }
 
-func TestCreateGroup_DefaultsCurrencyToUSD(t *testing.T) {
+func TestCreateGroup_DefaultsCurrencyToDefault(t *testing.T) {
 	svc, _ := newGroupService(nil)
 
 	group, err := svc.CreateGroup(context.Background(), "Asado", "🏔️", "", 1)
