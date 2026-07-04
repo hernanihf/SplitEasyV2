@@ -139,3 +139,26 @@ func TestLogout_RevokesTheRefreshToken(t *testing.T) {
 		t.Fatal("expected the revoked refresh token to be rejected")
 	}
 }
+
+func TestCurrencyFromLocale(t *testing.T) {
+	cases := []struct {
+		locale string
+		want   string
+	}{
+		{"es-AR", "ARS"},
+		{"pt-BR", "BRL"},
+		{"es-MX", "MXN"},
+		{"en-US", "USD"},
+		{"de-DE", "EUR"},
+		{"fr-FR", "EUR"},
+		{"es", domain.DefaultCurrency},     // no region subtag at all
+		{"en-GB", domain.DefaultCurrency},  // region we don't have a currency for
+		{"", domain.DefaultCurrency},       // Google didn't return a locale
+		{"es-419", domain.DefaultCurrency}, // Latin America "region" isn't a country
+	}
+	for _, c := range cases {
+		if got := currencyFromLocale(c.locale); got != c.want {
+			t.Errorf("currencyFromLocale(%q) = %q, want %q", c.locale, got, c.want)
+		}
+	}
+}

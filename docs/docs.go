@@ -2184,6 +2184,10 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "default_currency": {
+                    "description": "DefaultCurrency seeds the currency field when this user creates a new\ngroup — best-effort guessed from their Google account locale at\nlogin (see auth_service.go's currencyFromLocale), never validated\nagainst anything the user does afterward.",
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },

@@ -280,6 +280,13 @@ definitions:
         type: string
       created_at:
         type: string
+      default_currency:
+        description: |-
+          DefaultCurrency seeds the currency field when this user creates a new
+          group — best-effort guessed from their Google account locale at
+          login (see auth_service.go's currencyFromLocale), never validated
+          against anything the user does afterward.
+        type: string
       email:
         type: string
       id:

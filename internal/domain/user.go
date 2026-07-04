@@ -12,7 +12,12 @@ type User struct {
 	// PushEnabled is the user's own preference, checked before sending any
 	// push notification — separate from whether they have any subscribed
 	// devices (PushSubscription rows).
-	PushEnabled bool      `gorm:"not null;default:true" json:"push_enabled"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	PushEnabled bool `gorm:"not null;default:true" json:"push_enabled"`
+	// DefaultCurrency seeds the currency field when this user creates a new
+	// group — best-effort guessed from their Google account locale at
+	// login (see auth_service.go's currencyFromLocale), never validated
+	// against anything the user does afterward.
+	DefaultCurrency string    `gorm:"not null;default:'USD'" json:"default_currency"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }

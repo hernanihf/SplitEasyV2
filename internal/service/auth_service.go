@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"spliteasy/internal/config"
@@ -70,6 +71,48 @@ type googleUser struct {
 	Email   string `json:"email"`
 	Name    string `json:"name"`
 	Picture string `json:"picture"`
+	// Locale is the user's Google account UI-language preference (e.g.
+	// "en-US", "es-AR", or sometimes just "es" with no region at all) — a
+	// proxy for country, not a guarantee. Only present with the
+	// userinfo.profile scope, which is already requested.
+	Locale string `json:"locale"`
+}
+
+// currencyEurozone lists the Eurozone country codes worth recognizing here —
+// not exhaustive of the EU, just enough to cover users likely to actually
+// show up, since anything unmatched already falls back to USD.
+var currencyEurozone = map[string]bool{
+	"DE": true, "FR": true, "ES": true, "IT": true, "NL": true,
+	"PT": true, "IE": true, "AT": true, "BE": true, "FI": true,
+	"GR": true, "LU": true, "SK": true, "SI": true, "EE": true,
+	"LV": true, "LT": true, "CY": true, "MT": true, "HR": true,
+}
+
+// currencyFromLocale best-effort maps a Google account locale's region
+// subtag (the part after the "-", e.g. "AR" in "es-AR") to one of the
+// currencies SplitEasy actually supports. Locales with no region subtag, or
+// a region SplitEasy has no currency for, fall back to domain.DefaultCurrency
+// — a wrong guess here is just a suggestion the user can change, so there's
+// no reason to try harder (e.g. hitting a geolocation API) than this.
+func currencyFromLocale(locale string) string {
+	parts := strings.Split(locale, "-")
+	if len(parts) < 2 {
+		return domain.DefaultCurrency
+	}
+	switch strings.ToUpper(parts[len(parts)-1]) {
+	case "AR":
+		return "ARS"
+	case "BR":
+		return "BRL"
+	case "MX":
+		return "MXN"
+	case "US":
+		return "USD"
+	}
+	if currencyEurozone[strings.ToUpper(parts[len(parts)-1])] {
+		return "EUR"
+	}
+	return domain.DefaultCurrency
 }
 
 func (s *authService) HandleGoogleCallback(ctx context.Context, code string) (string, string, error) {
@@ -108,20 +151,25 @@ func (s *authService) HandleGoogleCallback(ctx context.Context, code string) (st
 	if err != nil {
 		// Assume user doesn't exist, create it
 		user = &domain.User{
-			Name:      gUser.Name,
-			Email:     gUser.Email,
-			AvatarURL: gUser.Picture,
+			Name:            gUser.Name,
+			Email:           gUser.Email,
+			AvatarURL:       gUser.Picture,
+			DefaultCurrency: currencyFromLocale(gUser.Locale),
 		}
 		err = s.userRepo.Create(ctx, user)
 		if err != nil {
 			return "", "", errors.New("failed to create user: " + err.Error())
 		}
-	} else if user.Name != gUser.Name || user.AvatarURL != gUser.Picture {
-		// Keep the profile fresh with what Google reports on each login.
-		user.Name = gUser.Name
-		user.AvatarURL = gUser.Picture
-		if err := s.userRepo.Update(ctx, user); err != nil {
-			return "", "", errors.New("failed to update user: " + err.Error())
+	} else {
+		defaultCurrency := currencyFromLocale(gUser.Locale)
+		if user.Name != gUser.Name || user.AvatarURL != gUser.Picture || user.DefaultCurrency != defaultCurrency {
+			// Keep the profile fresh with what Google reports on each login.
+			user.Name = gUser.Name
+			user.AvatarURL = gUser.Picture
+			user.DefaultCurrency = defaultCurrency
+			if err := s.userRepo.Update(ctx, user); err != nil {
+				return "", "", errors.New("failed to update user: " + err.Error())
+			}
 		}
 	}
 
