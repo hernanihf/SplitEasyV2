@@ -1445,6 +1445,10 @@ paths:
           description: Internal Server Error
           schema:
             type: string
+        "503":
+          description: Service Unavailable
+          schema:
+            type: string
       security:
       - JWT: []
       summary: Scan a receipt image or PDF

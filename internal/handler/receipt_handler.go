@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -27,6 +28,7 @@ func NewReceiptHandler(receiptService service.ReceiptService) *ReceiptHandler {
 // @Failure      401    {string}  string  "Unauthorized"
 // @Failure      429    {string}  string  "Too Many Requests"
 // @Failure      500    {string}  string  "Internal Server Error"
+// @Failure      503    {string}  string  "Service Unavailable"
 // @Security     JWT
 // @Router       /receipts/scan [post]
 func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +60,20 @@ func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
 
 	scan, err := h.receiptService.ParseReceipt(r.Context(), imageBytes, mimeType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		switch {
+		case errors.Is(err, service.ErrReceiptScanningUnavailable):
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		case errors.Is(err, service.ErrReceiptImageEmpty),
+			errors.Is(err, service.ErrReceiptFileTooLarge),
+			errors.Is(err, service.ErrReceiptUnsupportedType):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			// Anything else (a failed Anthropic call, a decode error, ...) is
+			// our fault, not the request's — the raw error can carry internal
+			// details (upstream status text, decode failures) that have no
+			// business reaching the client.
+			internalError(w, "failed to parse receipt", err)
+		}
 		return
 	}
 

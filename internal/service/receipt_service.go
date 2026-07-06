@@ -25,6 +25,20 @@ const (
 	MaxReceiptImageBytes = 4 * 1024 * 1024
 )
 
+// Sentinel errors for the input-validation failures a caller can act on —
+// the handler maps these to specific status codes. Anything else ParseReceipt
+// returns (a failed Anthropic call, a decode error, ...) is our fault, not
+// the request's, and the handler treats it as a generic 500 instead.
+var (
+	// ErrReceiptScanningUnavailable means the service isn't configured (e.g.
+	// missing ANTHROPIC_API_KEY) — not the caller's fault, but also not
+	// something to explain in detail to an API consumer.
+	ErrReceiptScanningUnavailable = errors.New("receipt scanning is currently unavailable")
+	ErrReceiptImageEmpty          = errors.New("image is empty")
+	ErrReceiptFileTooLarge        = errors.New("file is too large")
+	ErrReceiptUnsupportedType     = errors.New("unsupported file type")
+)
+
 // receiptPrompt embeds the fixed category list so the model's suggestion is
 // always one of the slugs the rest of the system accepts.
 var receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
@@ -132,16 +146,17 @@ type anthropicResponse struct {
 
 func (s *receiptService) ParseReceipt(ctx context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
 	if s.apiKey == "" {
-		return nil, errors.New("receipt scanning is not configured (missing ANTHROPIC_API_KEY)")
+		slog.Error("receipt scan requested but ANTHROPIC_API_KEY is not configured")
+		return nil, ErrReceiptScanningUnavailable
 	}
 	if len(imageBytes) == 0 {
-		return nil, errors.New("image is empty")
+		return nil, ErrReceiptImageEmpty
 	}
 	if len(imageBytes) > MaxReceiptImageBytes {
-		return nil, fmt.Errorf("file is too large (max %d bytes)", MaxReceiptImageBytes)
+		return nil, fmt.Errorf("%w (max %d bytes)", ErrReceiptFileTooLarge, MaxReceiptImageBytes)
 	}
 	if !supportedReceiptMimeTypes[mimeType] {
-		return nil, fmt.Errorf("unsupported file type %q", mimeType)
+		return nil, fmt.Errorf("%w: %q", ErrReceiptUnsupportedType, mimeType)
 	}
 
 	reqBody := anthropicRequest{

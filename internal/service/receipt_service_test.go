@@ -59,8 +59,8 @@ func TestParseReceipt_RejectsMissingAPIKey(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "", "claude-3-5-sonnet-20241022", nil)
 
 	_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
-	if err == nil {
-		t.Error("expected error when API key is not configured")
+	if !errors.Is(err, ErrReceiptScanningUnavailable) {
+		t.Errorf("expected ErrReceiptScanningUnavailable, got %v", err)
 	}
 }
 
@@ -68,8 +68,8 @@ func TestParseReceipt_RejectsEmptyImage(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022", nil)
 
 	_, err := svc.ParseReceipt(context.Background(), []byte{}, "image/jpeg")
-	if err == nil {
-		t.Error("expected error for empty image")
+	if !errors.Is(err, ErrReceiptImageEmpty) {
+		t.Errorf("expected ErrReceiptImageEmpty, got %v", err)
 	}
 }
 
@@ -77,8 +77,8 @@ func TestParseReceipt_RejectsUnsupportedMimeType(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022", nil)
 
 	_, err := svc.ParseReceipt(context.Background(), []byte("fake-bytes"), "text/plain")
-	if err == nil {
-		t.Error("expected error for unsupported mime type")
+	if !errors.Is(err, ErrReceiptUnsupportedType) {
+		t.Errorf("expected ErrReceiptUnsupportedType, got %v", err)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestParseReceipt_RejectsOversizedImage(t *testing.T) {
 
 	tooLarge := make([]byte, MaxReceiptImageBytes+1)
 	_, err := svc.ParseReceipt(context.Background(), tooLarge, "image/jpeg")
-	if err == nil {
-		t.Error("expected error for oversized image")
+	if !errors.Is(err, ErrReceiptFileTooLarge) {
+		t.Errorf("expected ErrReceiptFileTooLarge, got %v", err)
 	}
 }
 

@@ -49,7 +49,9 @@ const maxJSONBodyBytes = 1 << 20 // 1MB
 func main() {
 	// JSON structured logging: production log aggregators need machine-parsable
 	// output to filter by level/field, which the stdlib "log" package can't do.
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	// Wrapped in RedactingHandler as a safety net against a future call site
+	// accidentally logging a token/header/secret — no call site does today.
+	slog.SetDefault(slog.New(config.NewRedactingHandler(slog.NewJSONHandler(os.Stdout, nil))))
 
 	// Load .env file if present (local development only — ignored in production)
 	if err := godotenv.Load(); err != nil {
