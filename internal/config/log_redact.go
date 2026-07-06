@@ -21,10 +21,10 @@ var sensitiveKeys = []string{
 // include a header value). Matches are replaced in place so the rest of the
 // message stays readable.
 var secretPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)bearer\s+\S+`),                                     // "Bearer <token>"
-	regexp.MustCompile(`(?i)x-api-key:\s*\S+`),                                 // dumped header line
+	regexp.MustCompile(`(?i)bearer\s+\S+`),                                      // "Bearer <token>"
+	regexp.MustCompile(`(?i)x-api-key:\s*\S+`),                                  // dumped header line
 	regexp.MustCompile(`\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b`), // JWT
-	regexp.MustCompile(`\bsk-ant-[a-zA-Z0-9_-]+\b`),                            // Anthropic key
+	regexp.MustCompile(`\bsk-ant-[a-zA-Z0-9_-]+\b`),                             // Anthropic key
 }
 
 // RedactingHandler wraps another slog.Handler, scrubbing attribute values
