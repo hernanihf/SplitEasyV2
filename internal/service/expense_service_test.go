@@ -22,7 +22,8 @@ type fakeExpenseRepoForCreate struct {
 	updatedSplits  []domain.ExpenseSplit
 	updatedItems   []domain.ExpenseItem
 
-	deletedID uint
+	deletedID   uint
+	deletedByID uint
 }
 
 func (f *fakeExpenseRepoForCreate) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, items []domain.ExpenseItem) error {
@@ -51,8 +52,15 @@ func (f *fakeExpenseRepoForCreate) GetByGroupID(_ context.Context, groupID uint)
 	return nil, nil
 }
 
-func (f *fakeExpenseRepoForCreate) Delete(_ context.Context, id uint) error {
+// Deliberately distinct from GetByGroupID's return so a test can tell which
+// one the service actually called.
+func (f *fakeExpenseRepoForCreate) GetByGroupIDIncludingDeleted(_ context.Context, groupID uint) ([]domain.Expense, error) {
+	return []domain.Expense{{ID: 999}}, nil
+}
+
+func (f *fakeExpenseRepoForCreate) Delete(_ context.Context, id, deletedByID uint) error {
 	f.deletedID = id
+	f.deletedByID = deletedByID
 	return nil
 }
 
@@ -438,6 +446,21 @@ func TestUpdateExpense_StillValidatesSplits(t *testing.T) {
 	}
 }
 
+func TestGetGroupExpenses_IncludesSoftDeleted(t *testing.T) {
+	svc, _ := newTestExpenseService(nil)
+
+	expenses, err := svc.GetGroupExpenses(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// fakeExpenseRepoForCreate.GetByGroupID returns nil; only
+	// GetByGroupIDIncludingDeleted returns this sentinel row, so seeing it
+	// confirms the group's history view goes through the deleted-inclusive path.
+	if len(expenses) != 1 || expenses[0].ID != 999 {
+		t.Errorf("expected the soft-delete-inclusive query to be used, got %+v", expenses)
+	}
+}
+
 func TestDeleteExpense_AllowsPayerToDelete(t *testing.T) {
 	members := []domain.User{{ID: 1}, {ID: 2}}
 	svc, repo := newTestExpenseService(members)
@@ -448,6 +471,9 @@ func TestDeleteExpense_AllowsPayerToDelete(t *testing.T) {
 	}
 	if repo.deletedID != 5 {
 		t.Errorf("expected Delete to be called with id 5, got %d", repo.deletedID)
+	}
+	if repo.deletedByID != 1 {
+		t.Errorf("expected Delete to record caller 1 as deletedByID, got %d", repo.deletedByID)
 	}
 }
 

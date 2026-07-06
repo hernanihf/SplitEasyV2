@@ -69,6 +69,10 @@ type ExpenseService interface {
 	// member of the expense's group (enforced by the handler, which needs
 	// the expense's GroupID from this call before it can check that).
 	GetExpense(ctx context.Context, expenseID uint) (*domain.Expense, error)
+	// GetGroupExpenses returns every expense in the group, including
+	// soft-deleted ones (struck through client-side) — this is the group's
+	// history view, not the balance calculation, which uses its own
+	// non-deleted-only query.
 	GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error)
 }
 
@@ -262,7 +266,7 @@ func (s *expenseService) DeleteExpense(ctx context.Context, expenseID, callerID 
 	if !isPayerOrSplitParticipant(callerID, existing) {
 		return ErrNotExpenseParty
 	}
-	return s.expenseRepo.Delete(ctx, expenseID)
+	return s.expenseRepo.Delete(ctx, expenseID, callerID)
 }
 
 func (s *expenseService) GetExpense(ctx context.Context, expenseID uint) (*domain.Expense, error) {
@@ -422,5 +426,5 @@ func splitByShares(amount int64, splitInputs []SplitInput) (map[uint]int64, erro
 }
 
 func (s *expenseService) GetGroupExpenses(ctx context.Context, groupID uint) ([]domain.Expense, error) {
-	return s.expenseRepo.GetByGroupID(ctx, groupID)
+	return s.expenseRepo.GetByGroupIDIncludingDeleted(ctx, groupID)
 }

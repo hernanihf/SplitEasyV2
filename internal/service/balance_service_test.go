@@ -40,7 +40,11 @@ func (f *fakeExpenseRepo) GetByGroupID(_ context.Context, groupID uint) ([]domai
 	return f.expenses, nil
 }
 
-func (f *fakeExpenseRepo) Delete(_ context.Context, _ uint) error {
+func (f *fakeExpenseRepo) GetByGroupIDIncludingDeleted(_ context.Context, groupID uint) ([]domain.Expense, error) {
+	return f.expenses, nil
+}
+
+func (f *fakeExpenseRepo) Delete(_ context.Context, _, _ uint) error {
 	return nil
 }
 

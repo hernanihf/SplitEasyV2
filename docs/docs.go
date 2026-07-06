@@ -1973,6 +1973,13 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "deleted_at": {
+                    "description": "A deleted expense is excluded from every normal query (including\nbalance calculations) by GORM's default scope, but the row — and the\nfact that it existed — is kept for dispute resolution. It's exposed in\nJSON (unlike most soft-deleted rows in this codebase) so the group's\nhistory can show it struck through instead of just vanishing.",
+                    "type": "string"
+                },
+                "deleted_by": {
+                    "$ref": "#/definitions/domain.User"
+                },
                 "description": {
                     "type": "string"
                 },

@@ -27,8 +27,15 @@ type Expense struct {
 
 	// A deleted expense is excluded from every normal query (including
 	// balance calculations) by GORM's default scope, but the row — and the
-	// fact that it existed — is kept for dispute resolution.
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	// fact that it existed — is kept for dispute resolution. It's exposed in
+	// JSON (unlike most soft-deleted rows in this codebase) so the group's
+	// history can show it struck through instead of just vanishing.
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at" swaggertype:"string"`
+	// DeletedByID is who ran the delete — only meaningful once DeletedAt is
+	// set. No default scope excludes it, so it stays populated on the
+	// tombstoned row for GetByGroupIDIncludingDeleted to preload.
+	DeletedByID *uint `json:"-"`
+	DeletedBy   *User `gorm:"foreignKey:DeletedByID" json:"deleted_by,omitempty"`
 
 	// Relationships
 	PaidBy User           `gorm:"foreignKey:PaidByID" json:"paid_by"`

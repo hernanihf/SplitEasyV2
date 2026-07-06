@@ -67,7 +67,10 @@ func (f *fakeExpenseRepoByGroup) GetByID(_ context.Context, _ uint) (*domain.Exp
 func (f *fakeExpenseRepoByGroup) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return f.byGroup[groupID], nil
 }
-func (f *fakeExpenseRepoByGroup) Delete(_ context.Context, _ uint) error { return nil }
+func (f *fakeExpenseRepoByGroup) GetByGroupIDIncludingDeleted(_ context.Context, groupID uint) ([]domain.Expense, error) {
+	return f.byGroup[groupID], nil
+}
+func (f *fakeExpenseRepoByGroup) Delete(_ context.Context, _, _ uint) error { return nil }
 func (f *fakeExpenseRepoByGroup) GetOldSoftDeletedReceiptImagePaths(_ context.Context, _ time.Time) ([]string, error) {
 	return nil, nil
 }

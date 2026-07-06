@@ -17,9 +17,16 @@ type ExpenseRepository interface {
 	UpdateWithSplits(ctx context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, items []domain.ExpenseItem) error
 	GetByID(ctx context.Context, id uint) (*domain.Expense, error)
 	GetByGroupID(ctx context.Context, groupID uint) ([]domain.Expense, error)
-	// Delete soft-deletes the expense (sets deleted_at); it's excluded from
-	// every normal query afterward but the row itself is kept.
-	Delete(ctx context.Context, id uint) error
+	// GetByGroupIDIncludingDeleted is like GetByGroupID but also returns
+	// soft-deleted expenses (with DeletedBy preloaded), for the group's
+	// history view — which shows a deleted expense struck through instead of
+	// removing it outright. Balances and summaries must keep using
+	// GetByGroupID; this is only for that one display case.
+	GetByGroupIDIncludingDeleted(ctx context.Context, groupID uint) ([]domain.Expense, error)
+	// Delete soft-deletes the expense (sets deleted_at and deleted_by_id);
+	// it's excluded from every normal query afterward but the row itself is
+	// kept.
+	Delete(ctx context.Context, id, deletedByID uint) error
 	// GetOldSoftDeletedReceiptImagePaths returns the receipt image path of
 	// every expense soft-deleted before cutoff — collected before
 	// PurgeOldSoftDeleted so the caller can clean up storage after the
@@ -165,8 +172,32 @@ func (r *expenseRepository) GetByGroupID(ctx context.Context, groupID uint) ([]d
 	return expenses, nil
 }
 
-func (r *expenseRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&domain.Expense{}, id).Error
+func (r *expenseRepository) GetByGroupIDIncludingDeleted(ctx context.Context, groupID uint) ([]domain.Expense, error) {
+	var expenses []domain.Expense
+	err := r.db.WithContext(ctx).
+		Unscoped().
+		Preload("Splits").
+		Preload("PaidBy").
+		Preload("DeletedBy").
+		Preload("Items").
+		Preload("Items.Users").
+		Where("group_id = ?", groupID).
+		Find(&expenses).Error
+	if err != nil {
+		return nil, err
+	}
+	return expenses, nil
+}
+
+// Delete sets deleted_at and deleted_by_id in one statement instead of
+// GORM's own soft-delete (which only knows about deleted_at) — deleted_at is
+// still the column every other query's default scope filters on, so this
+// has the same soft-delete effect while also recording who did it.
+func (r *expenseRepository) Delete(ctx context.Context, id, deletedByID uint) error {
+	return r.db.WithContext(ctx).Model(&domain.Expense{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"deleted_at":    time.Now(),
+		"deleted_by_id": deletedByID,
+	}).Error
 }
 
 func (r *expenseRepository) GetOldSoftDeletedReceiptImagePaths(ctx context.Context, cutoff time.Time) ([]string, error) {
