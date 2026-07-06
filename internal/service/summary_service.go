@@ -125,7 +125,10 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 			names[m.ID] = m.Name
 		}
 
-		expenses, err := s.expenseRepo.GetByGroupID(ctx, g.ID)
+		// Includes soft-deleted expenses (unlike GetHomeSummary's balance
+		// calculation above) — the feed shows them struck through instead of
+		// silently dropping them.
+		expenses, err := s.expenseRepo.GetByGroupIDIncludingDeleted(ctx, g.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +139,7 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 					yourShare = sp.Amount
 				}
 			}
-			events = append(events, domain.ActivityEvent{
+			event := domain.ActivityEvent{
 				ID:         e.ID,
 				Type:       "expense",
 				GroupID:    g.ID,
@@ -150,7 +153,12 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 				Amount:     e.Amount,
 				YourShare:  yourShare,
 				Date:       e.CreatedAt,
-			})
+				Deleted:    e.DeletedAt.Valid,
+			}
+			if e.DeletedAt.Valid && e.DeletedBy != nil {
+				event.DeletedByName = e.DeletedBy.Name
+			}
+			events = append(events, event)
 		}
 
 		settlements, err := s.settlementRepo.GetByGroupID(ctx, g.ID)

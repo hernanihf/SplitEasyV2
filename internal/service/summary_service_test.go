@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"spliteasy/internal/domain"
+
+	"gorm.io/gorm"
 )
 
 type fakeGroupRepoForSummary struct {
@@ -166,5 +168,40 @@ func TestGetActivity_CarriesGroupCurrency(t *testing.T) {
 	}
 	if events[0].Currency != "ARS" {
 		t.Errorf("expected event currency %q, got %q", "ARS", events[0].Currency)
+	}
+}
+
+func TestGetActivity_FlagsSoftDeletedExpense(t *testing.T) {
+	deleter := uint(2)
+	groups := []domain.Group{
+		{ID: 1, Name: "Asado", Members: []domain.User{{ID: 1}, {ID: 2}}},
+	}
+	expensesByGroup := map[uint][]domain.Expense{
+		1: {{
+			ID: 9, PaidByID: 1, Description: "Carne", Amount: 5000,
+			DeletedAt:   gorm.DeletedAt{Time: time.Now(), Valid: true},
+			DeletedByID: &deleter,
+			DeletedBy:   &domain.User{ID: 2, Name: "Bob"},
+		}},
+	}
+
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{groups: groups},
+		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
+		&fakeSettlementRepoByGroup{},
+	)
+
+	events, err := svc.GetActivity(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if !events[0].Deleted {
+		t.Error("expected the event to be flagged as deleted")
+	}
+	if events[0].DeletedByName != "Bob" {
+		t.Errorf("expected deleted_by_name %q, got %q", "Bob", events[0].DeletedByName)
 	}
 }

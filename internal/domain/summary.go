@@ -54,4 +54,9 @@ type ActivityEvent struct {
 	Amount    int64     `json:"amount"`     // cents
 	YourShare int64     `json:"your_share"` // cents
 	Date      time.Time `json:"date"`
+	// Deleted (expenses only — a settlement can't be soft-deleted) means this
+	// is a tombstone: still shown for transparency, but crossed out and
+	// non-interactive in the feed, same as in the group's own history.
+	Deleted       bool   `json:"deleted,omitempty"`
+	DeletedByName string `json:"deleted_by_name,omitempty"`
 }

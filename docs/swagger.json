@@ -1883,6 +1883,13 @@
                 "date": {
                     "type": "string"
                 },
+                "deleted": {
+                    "description": "Deleted (expenses only — a settlement can't be soft-deleted) means this\nis a tombstone: still shown for transparency, but crossed out and\nnon-interactive in the feed, same as in the group's own history.",
+                    "type": "boolean"
+                },
+                "deleted_by_name": {
+                    "type": "string"
+                },
                 "group_emoji": {
                     "type": "string"
                 },
