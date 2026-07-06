@@ -96,7 +96,7 @@ func settleDebtRequest(t *testing.T, authUserID uint, body SettleDebtRequest) *h
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{}, nil)
+	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{}, nil, nil)
 	h.SettleDebt(rec, req)
 	return rec
 }
@@ -133,7 +133,7 @@ func deleteSettlementRequest(t *testing.T, fake *fakeBalanceService, settlementI
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
 	h.DeleteSettlement(rec, req)
 	return rec
 }
@@ -176,7 +176,7 @@ func getSettlementRequest(t *testing.T, fake *fakeBalanceService, settlementID s
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rec := httptest.NewRecorder()
-	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
 	h.GetSettlement(rec, req)
 	return rec
 }
@@ -197,5 +197,56 @@ func TestGetSettlement_MapsNotFoundTo404(t *testing.T) {
 	rec := getSettlementRequest(t, fake, "12", 1)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSettleDebt_RecordsAuditEntry(t *testing.T) {
+	payload, err := json.Marshal(SettleDebtRequest{FromUserID: 2, ToUserID: 1, Amount: 500})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups/1/settlements", bytes.NewReader(payload))
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(2)))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	audit := &fakeAuditService{}
+	h := NewBalanceHandler(&fakeBalanceService{}, fakeGroupServiceForBalance{}, nil, audit)
+	rec := httptest.NewRecorder()
+	h.SettleDebt(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.records) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.records))
+	}
+	if entry := audit.records[0]; entry.groupID != 1 || entry.actorID != 2 || entry.action != domain.AuditActionSettlementCreated {
+		t.Errorf("unexpected audit entry: %+v", entry)
+	}
+}
+
+func TestDeleteSettlement_RecordsAuditEntry(t *testing.T) {
+	fake := &fakeBalanceService{}
+	audit := &fakeAuditService{}
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/settlements/9", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(1)))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "9")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h := NewBalanceHandler(fake, fakeGroupServiceForBalance{}, nil, audit)
+	rec := httptest.NewRecorder()
+	h.DeleteSettlement(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.records) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.records))
+	}
+	if entry := audit.records[0]; entry.entityID != 9 || entry.action != domain.AuditActionSettlementDeleted {
+		t.Errorf("unexpected audit entry: %+v", entry)
 	}
 }

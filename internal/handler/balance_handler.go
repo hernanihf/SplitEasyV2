@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
@@ -16,10 +17,11 @@ type BalanceHandler struct {
 	balanceService service.BalanceService
 	groupService   service.GroupService
 	pushService    service.PushService
+	auditService   service.AuditService
 }
 
-func NewBalanceHandler(balanceService service.BalanceService, groupService service.GroupService, pushService service.PushService) *BalanceHandler {
-	return &BalanceHandler{balanceService, groupService, pushService}
+func NewBalanceHandler(balanceService service.BalanceService, groupService service.GroupService, pushService service.PushService, auditService service.AuditService) *BalanceHandler {
+	return &BalanceHandler{balanceService, groupService, pushService, auditService}
 }
 
 // GetGroupBalances godoc
@@ -193,6 +195,8 @@ func (h *BalanceHandler) SettleDebt(w http.ResponseWriter, r *http.Request) {
 	notifyGroupMembersAsync(h.pushService, uint(groupID), userID, service.PushCategoryPayment, func(actorName string) string {
 		return fmt.Sprintf("%s recorded a payment", actorName)
 	})
+	recordAudit(r.Context(), h.auditService, uint(groupID), userID, domain.AuditActionSettlementCreated, domain.AuditEntitySettlement, settlement.ID,
+		fmt.Sprintf("from_user=%d to_user=%d amount_cents=%d", req.FromUserID, req.ToUserID, req.Amount))
 
 	writeJSON(w, http.StatusCreated, settlement)
 }
@@ -233,6 +237,8 @@ func (h *BalanceHandler) DeleteSettlement(w http.ResponseWriter, r *http.Request
 			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, service.PushCategoryPayment, func(actorName string) string {
 				return fmt.Sprintf("%s deleted a payment", actorName)
 			})
+			recordAudit(r.Context(), h.auditService, existing.GroupID, userID, domain.AuditActionSettlementDeleted, domain.AuditEntitySettlement, uint(settlementID),
+				fmt.Sprintf("from_user=%d to_user=%d amount_cents=%d", existing.FromUserID, existing.ToUserID, existing.Amount))
 		}
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, service.ErrSettlementNotFound):

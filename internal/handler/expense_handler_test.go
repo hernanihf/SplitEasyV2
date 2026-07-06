@@ -72,7 +72,7 @@ func addExpenseRequest(t *testing.T, authUserID uint, body AddExpenseRequest) *h
 
 	rec := httptest.NewRecorder()
 	fake := &fakeExpenseService{}
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil, nil)
 	h.AddExpense(rec, req)
 	return rec
 }
@@ -121,6 +121,53 @@ func TestAddExpense_RejectsBystanderNotInPaymentOrSplits(t *testing.T) {
 	}
 }
 
+func TestAddExpense_RecordsAuditEntry(t *testing.T) {
+	payload, err := json.Marshal(AddExpenseRequest{GroupID: 1, PaidByID: 1, Description: "Dinner", Amount: 1000})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/expenses", bytes.NewReader(payload))
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(1)))
+
+	audit := &fakeAuditService{}
+	h := NewExpenseHandler(&fakeExpenseService{}, fakeGroupServiceForBalance{}, nil, nil, audit)
+	rec := httptest.NewRecorder()
+	h.AddExpense(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.records) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.records))
+	}
+	entry := audit.records[0]
+	if entry.groupID != 1 || entry.actorID != 1 || entry.action != domain.AuditActionExpenseCreated || entry.detail != "Dinner" {
+		t.Errorf("unexpected audit entry: %+v", entry)
+	}
+}
+
+func TestDeleteExpense_RecordsAuditEntry(t *testing.T) {
+	fake := &fakeExpenseService{}
+	audit := &fakeAuditService{}
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/expenses/7", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(1)))
+	req = withURLParam(req, "id", "7")
+
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil, audit)
+	rec := httptest.NewRecorder()
+	h.DeleteExpense(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.records) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.records))
+	}
+	if entry := audit.records[0]; entry.entityID != 7 || entry.action != domain.AuditActionExpenseDeleted {
+		t.Errorf("unexpected audit entry: %+v", entry)
+	}
+}
+
 func withURLParam(req *http.Request, key, value string) *http.Request {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add(key, value)
@@ -140,7 +187,7 @@ func updateExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil, nil)
 	h.UpdateExpense(rec, req)
 	return rec
 }
@@ -182,7 +229,7 @@ func deleteExpenseRequest(t *testing.T, fake *fakeExpenseService, expenseID stri
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, nil, nil, nil)
 	h.DeleteExpense(rec, req)
 	return rec
 }
@@ -244,7 +291,7 @@ func getExpenseRequest(t *testing.T, fake *fakeExpenseService, storage service.S
 	req = withURLParam(req, "id", expenseID)
 
 	rec := httptest.NewRecorder()
-	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, storage, nil)
+	h := NewExpenseHandler(fake, fakeGroupServiceForBalance{}, storage, nil, nil)
 	h.GetExpense(rec, req)
 	return rec
 }

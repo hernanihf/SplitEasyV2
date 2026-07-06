@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"spliteasy/internal/config"
+	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
@@ -15,10 +16,11 @@ import (
 
 type GroupHandler struct {
 	groupService service.GroupService
+	auditService service.AuditService
 }
 
-func NewGroupHandler(groupService service.GroupService) *GroupHandler {
-	return &GroupHandler{groupService}
+func NewGroupHandler(groupService service.GroupService, auditService service.AuditService) *GroupHandler {
+	return &GroupHandler{groupService, auditService}
 }
 
 // authorizeGroupAccess ensures the authenticated user is a member of the group.
@@ -156,8 +158,15 @@ func (h *GroupHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetched before deleting purely to name the group in the audit record —
+	// once DeleteGroup succeeds there's nothing left to look this up from.
+	existing, _ := h.groupService.GetGroup(r.Context(), uint(id))
+
 	switch err := h.groupService.DeleteGroup(r.Context(), uint(id), userID); {
 	case err == nil:
+		if existing != nil {
+			recordAudit(r.Context(), h.auditService, uint(id), userID, domain.AuditActionGroupDeleted, domain.AuditEntityGroup, uint(id), existing.Name)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, service.ErrGroupNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)

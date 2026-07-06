@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
 	"spliteasy/internal/service"
 	"strconv"
@@ -24,10 +25,11 @@ type ExpenseHandler struct {
 	groupService   service.GroupService
 	storageService service.StorageService // nil when Supabase Storage isn't configured
 	pushService    service.PushService
+	auditService   service.AuditService
 }
 
-func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService, storageService service.StorageService, pushService service.PushService) *ExpenseHandler {
-	return &ExpenseHandler{expenseService, groupService, storageService, pushService}
+func NewExpenseHandler(expenseService service.ExpenseService, groupService service.GroupService, storageService service.StorageService, pushService service.PushService, auditService service.AuditService) *ExpenseHandler {
+	return &ExpenseHandler{expenseService, groupService, storageService, pushService, auditService}
 }
 
 // isCallerInSplits reports whether userID is one of the split participants.
@@ -153,6 +155,7 @@ func (h *ExpenseHandler) AddExpense(w http.ResponseWriter, r *http.Request) {
 	notifyGroupMembersAsync(h.pushService, req.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 		return fmt.Sprintf("%s added an expense: %q", actorName, req.Description)
 	})
+	recordAudit(r.Context(), h.auditService, req.GroupID, userID, domain.AuditActionExpenseCreated, domain.AuditEntityExpense, expense.ID, req.Description)
 
 	writeJSON(w, http.StatusCreated, expense)
 }
@@ -252,6 +255,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	notifyGroupMembersAsync(h.pushService, expense.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 		return fmt.Sprintf("%s edited an expense: %q", actorName, req.Description)
 	})
+	recordAudit(r.Context(), h.auditService, expense.GroupID, userID, domain.AuditActionExpenseUpdated, domain.AuditEntityExpense, expense.ID, req.Description)
 
 	writeJSON(w, http.StatusOK, expense)
 }
@@ -294,6 +298,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 			notifyGroupMembersAsync(h.pushService, existing.GroupID, userID, service.PushCategoryExpense, func(actorName string) string {
 				return fmt.Sprintf("%s deleted an expense: %q", actorName, existing.Description)
 			})
+			recordAudit(r.Context(), h.auditService, existing.GroupID, userID, domain.AuditActionExpenseDeleted, domain.AuditEntityExpense, uint(expenseID), existing.Description)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, service.ErrExpenseNotFound):

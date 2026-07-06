@@ -89,6 +89,7 @@ func main() {
 	commentRepo := repository.NewCommentRepository(db)
 	pushSubRepo := repository.NewPushSubscriptionRepository(db)
 	jobRunRepo := repository.NewJobRunRepository(db)
+	auditLogRepo := repository.NewAuditLogRepository(db)
 
 	// 2. Init Services
 	userService := service.NewUserService(userRepo)
@@ -108,12 +109,13 @@ func main() {
 		slog.Warn("VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set, push notifications will not be sent")
 	}
 	purgeService := service.NewPurgeService(expenseRepo, jobRunRepo, storageService)
+	auditService := service.NewAuditService(auditLogRepo)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService, pushService)
-	groupHandler := handler.NewGroupHandler(groupService)
-	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService, pushService)
-	balanceHandler := handler.NewBalanceHandler(balanceService, groupService, pushService)
+	groupHandler := handler.NewGroupHandler(groupService, auditService)
+	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService, pushService, auditService)
+	balanceHandler := handler.NewBalanceHandler(balanceService, groupService, pushService, auditService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)

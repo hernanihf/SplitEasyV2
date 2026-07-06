@@ -15,13 +15,14 @@ type fakeGroupServiceForGroupHandler struct {
 	deleteErr       error
 	deletedGroupID  uint
 	deletedCallerID uint
+	group           *domain.Group
 }
 
 func (f *fakeGroupServiceForGroupHandler) CreateGroup(_ context.Context, _, _, _ string, _ uint) (*domain.Group, error) {
 	return nil, nil
 }
 func (f *fakeGroupServiceForGroupHandler) GetGroup(_ context.Context, _ uint) (*domain.Group, error) {
-	return nil, nil
+	return f.group, nil
 }
 func (f *fakeGroupServiceForGroupHandler) ListGroupsForUser(_ context.Context, _ uint) ([]domain.Group, error) {
 	return nil, nil
@@ -49,7 +50,7 @@ func deleteGroupRequest(t *testing.T, fake *fakeGroupServiceForGroupHandler, gro
 	req = withURLParam(req, "id", groupID)
 
 	rec := httptest.NewRecorder()
-	h := NewGroupHandler(fake)
+	h := NewGroupHandler(fake, nil)
 	h.DeleteGroup(rec, req)
 	return rec
 }
@@ -90,7 +91,7 @@ func TestDeleteGroup_RejectsUnauthenticated(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/groups/1", nil)
 	req = withURLParam(req, "id", "1")
 	rec := httptest.NewRecorder()
-	h := NewGroupHandler(fake)
+	h := NewGroupHandler(fake, nil)
 	h.DeleteGroup(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
@@ -104,5 +105,28 @@ func TestDeleteGroup_RejectsInvalidID(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestDeleteGroup_RecordsAuditEntry(t *testing.T) {
+	fake := &fakeGroupServiceForGroupHandler{group: &domain.Group{ID: 1, Name: "Trip to BA"}}
+	audit := &fakeAuditService{}
+	h := NewGroupHandler(fake, audit)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/groups/1", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(7)))
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h.DeleteGroup(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.records) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(audit.records))
+	}
+	entry := audit.records[0]
+	if entry.groupID != 1 || entry.actorID != 7 || entry.action != domain.AuditActionGroupDeleted || entry.detail != "Trip to BA" {
+		t.Errorf("unexpected audit entry: %+v", entry)
 	}
 }
