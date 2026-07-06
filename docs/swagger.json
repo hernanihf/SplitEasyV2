@@ -975,6 +975,74 @@
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "JWT": []
+                    }
+                ],
+                "description": "Updates the group's name and/or emoji. Any member may call this — unlike deleting a group, renaming or re-iconing it isn't destructive. Fields omitted from the request body are left unchanged.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Update a group's name and/or icon",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "group",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Group"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         },
         "/groups/{id}/balances": {
@@ -2477,6 +2545,19 @@
                     "items": {
                         "$ref": "#/definitions/handler.SplitInputRequest"
                     }
+                }
+            }
+        },
+        "handler.UpdateGroupRequest": {
+            "type": "object",
+            "properties": {
+                "emoji": {
+                    "type": "string",
+                    "example": "🏔️"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Trip to Paris"
                 }
             }
         }

@@ -15,6 +15,10 @@ type GroupRepository interface {
 	GetByInviteToken(ctx context.Context, token string) (*domain.Group, error)
 	AddMember(ctx context.Context, groupID, userID uint) error
 	SetInviteTokenIfEmpty(ctx context.Context, groupID uint, token string) error
+	// UpdateNameAndEmoji updates only the fields that are non-nil, so a
+	// caller can patch the name, the emoji, or both in one call without
+	// clobbering the field it left untouched.
+	UpdateNameAndEmoji(ctx context.Context, groupID uint, name, emoji *string) error
 	// GetExpenseReceiptImagePaths returns the storage path of every receipt
 	// image attached to any expense in the group (including already
 	// soft-deleted expenses) — collected before Delete so the caller can
@@ -86,6 +90,20 @@ func (r *groupRepository) SetInviteTokenIfEmpty(ctx context.Context, groupID uin
 	return r.db.WithContext(ctx).Model(&domain.Group{}).
 		Where("id = ? AND (invite_token IS NULL OR invite_token = '')", groupID).
 		Update("invite_token", token).Error
+}
+
+func (r *groupRepository) UpdateNameAndEmoji(ctx context.Context, groupID uint, name, emoji *string) error {
+	updates := map[string]interface{}{}
+	if name != nil {
+		updates["name"] = *name
+	}
+	if emoji != nil {
+		updates["emoji"] = *emoji
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(&domain.Group{}).Where("id = ?", groupID).Updates(updates).Error
 }
 
 func (r *groupRepository) GetExpenseReceiptImagePaths(ctx context.Context, groupID uint) ([]string, error) {

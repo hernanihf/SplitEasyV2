@@ -37,6 +37,10 @@ func (f *fakeGroupRepoForSummary) SetInviteTokenIfEmpty(_ context.Context, _ uin
 	return nil
 }
 
+func (f *fakeGroupRepoForSummary) UpdateNameAndEmoji(_ context.Context, _ uint, _, _ *string) error {
+	return nil
+}
+
 func (f *fakeGroupRepoForSummary) GetExpenseReceiptImagePaths(_ context.Context, _ uint) ([]string, error) {
 	return nil, nil
 }

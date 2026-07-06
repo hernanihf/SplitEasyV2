@@ -194,6 +194,7 @@ func main() {
 			r.Get("/groups", groupHandler.ListGroups)
 			r.Post("/groups/join", groupHandler.JoinGroup)
 			r.Get("/groups/{id}", groupHandler.GetGroup)
+			r.Patch("/groups/{id}", groupHandler.UpdateGroup)
 			r.Delete("/groups/{id}", groupHandler.DeleteGroup)
 			r.Get("/groups/{id}/invite", groupHandler.GetInvite)
 			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)

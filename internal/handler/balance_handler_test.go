@@ -73,6 +73,10 @@ func (fakeGroupServiceForBalance) VerifyMembership(_ context.Context, _, _ uint)
 	return nil
 }
 
+func (fakeGroupServiceForBalance) UpdateGroup(_ context.Context, _, _ uint, _, _ *string) (*domain.Group, error) {
+	return nil, nil
+}
+
 func (fakeGroupServiceForBalance) DeleteGroup(_ context.Context, _, _ uint) error {
 	return nil
 }

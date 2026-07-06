@@ -179,6 +179,66 @@ func TestJoinGroup_RejectsInvalidToken(t *testing.T) {
 	}
 }
 
+func TestUpdateGroup_AllowsAnyMember(t *testing.T) {
+	group := &domain.Group{ID: 1, Name: "Old Name", Emoji: "🏔️", CreatedBy: 7, Members: []domain.User{{ID: 7}, {ID: 42}}}
+	svc, _ := newGroupService(group)
+
+	updated, err := svc.UpdateGroup(context.Background(), 1, 42, strPtr("New Name"), strPtr("🎉"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Name != "New Name" || updated.Emoji != "🎉" {
+		t.Errorf("expected name/emoji updated, got %+v", updated)
+	}
+}
+
+func TestUpdateGroup_PartialUpdateLeavesOtherFieldUnchanged(t *testing.T) {
+	group := &domain.Group{ID: 1, Name: "Old Name", Emoji: "🏔️", Members: []domain.User{{ID: 7}}}
+	svc, _ := newGroupService(group)
+
+	updated, err := svc.UpdateGroup(context.Background(), 1, 7, strPtr("New Name"), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Name != "New Name" {
+		t.Errorf("expected name updated, got %q", updated.Name)
+	}
+	if updated.Emoji != "🏔️" {
+		t.Errorf("expected emoji left untouched, got %q", updated.Emoji)
+	}
+}
+
+func TestUpdateGroup_RejectsNonMember(t *testing.T) {
+	group := &domain.Group{ID: 1, Members: []domain.User{{ID: 7}}}
+	svc, _ := newGroupService(group)
+
+	_, err := svc.UpdateGroup(context.Background(), 1, 99, strPtr("New Name"), nil)
+	if !errors.Is(err, ErrNotGroupMember) {
+		t.Fatalf("expected ErrNotGroupMember, got %v", err)
+	}
+}
+
+func TestUpdateGroup_RejectsEmptyName(t *testing.T) {
+	group := &domain.Group{ID: 1, Name: "Old Name", Members: []domain.User{{ID: 7}}}
+	svc, _ := newGroupService(group)
+
+	_, err := svc.UpdateGroup(context.Background(), 1, 7, strPtr("   "), nil)
+	if err == nil {
+		t.Error("expected error for blank name")
+	}
+}
+
+func TestUpdateGroup_GroupNotFound(t *testing.T) {
+	svc, _ := newGroupService(nil)
+
+	_, err := svc.UpdateGroup(context.Background(), 1, 7, strPtr("New Name"), nil)
+	if !errors.Is(err, ErrGroupNotFound) {
+		t.Fatalf("expected ErrGroupNotFound, got %v", err)
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
 func TestDeleteGroup_AllowsCreator(t *testing.T) {
 	group := &domain.Group{ID: 1, CreatedBy: 7}
 	svc, repo := newGroupService(group)

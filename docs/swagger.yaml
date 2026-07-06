@@ -499,6 +499,15 @@ definitions:
           $ref: '#/definitions/handler.SplitInputRequest'
         type: array
     type: object
+  handler.UpdateGroupRequest:
+    properties:
+      emoji:
+        example: "\U0001F3D4️"
+        type: string
+      name:
+        example: Trip to Paris
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -1115,6 +1124,52 @@ paths:
       security:
       - JWT: []
       summary: Get a group
+      tags:
+      - groups
+    patch:
+      consumes:
+      - application/json
+      description: Updates the group's name and/or emoji. Any member may call this
+        — unlike deleting a group, renaming or re-iconing it isn't destructive. Fields
+        omitted from the request body are left unchanged.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Fields to update
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Group'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Update a group's name and/or icon
       tags:
       - groups
   /groups/{id}/balances:

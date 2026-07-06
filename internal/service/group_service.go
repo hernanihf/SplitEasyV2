@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
@@ -25,6 +26,9 @@ type GroupService interface {
 	GetInviteToken(ctx context.Context, groupID, userID uint) (string, error)
 	JoinGroup(ctx context.Context, token string, userID uint) (*domain.Group, error)
 	VerifyMembership(ctx context.Context, groupID, userID uint) error
+	// UpdateGroup changes the group's name and/or emoji — any member may
+	// call it, unlike DeleteGroup. Fields left nil are unchanged.
+	UpdateGroup(ctx context.Context, groupID, callerID uint, name, emoji *string) (*domain.Group, error)
 	// DeleteGroup permanently deletes the group and everything under it
 	// (expenses, settlements, comments, and their receipt images). Only the
 	// group's creator may do this. Irreversible.
@@ -164,6 +168,29 @@ func (s *groupService) JoinGroup(ctx context.Context, token string, userID uint)
 	}
 
 	return group, nil
+}
+
+// UpdateGroup changes the group's name and/or emoji, provided callerID is a
+// member. A nil field is left unchanged, so a caller can patch just the name,
+// just the emoji, or both. An empty (all-whitespace) name is rejected — every
+// other field is otherwise unvalidated here, matching CreateGroup's emoji.
+func (s *groupService) UpdateGroup(ctx context.Context, groupID, callerID uint, name, emoji *string) (*domain.Group, error) {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, ErrGroupNotFound
+	}
+	if !isMember(group, callerID) {
+		return nil, ErrNotGroupMember
+	}
+	if name != nil && strings.TrimSpace(*name) == "" {
+		return nil, errors.New("group name is required")
+	}
+
+	if err := s.groupRepo.UpdateNameAndEmoji(ctx, groupID, name, emoji); err != nil {
+		return nil, err
+	}
+
+	return s.groupRepo.GetByID(ctx, groupID)
 }
 
 // DeleteGroup checks that callerID created the group, then permanently

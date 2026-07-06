@@ -101,6 +101,19 @@ func (f *fakeGroupRepo) SetInviteTokenIfEmpty(_ context.Context, groupID uint, t
 	return nil
 }
 
+func (f *fakeGroupRepo) UpdateNameAndEmoji(_ context.Context, groupID uint, name, emoji *string) error {
+	if f.group == nil || f.group.ID != groupID {
+		return nil
+	}
+	if name != nil {
+		f.group.Name = *name
+	}
+	if emoji != nil {
+		f.group.Emoji = *emoji
+	}
+	return nil
+}
+
 func (f *fakeGroupRepo) GetExpenseReceiptImagePaths(_ context.Context, _ uint) ([]string, error) {
 	return f.receiptImagePaths, f.receiptPathsErr
 }

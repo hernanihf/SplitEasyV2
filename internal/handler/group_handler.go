@@ -177,6 +177,71 @@ func (h *GroupHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type UpdateGroupRequest struct {
+	Name  *string `json:"name,omitempty" example:"Trip to Paris"`
+	Emoji *string `json:"emoji,omitempty" example:"🏔️"`
+}
+
+// UpdateGroup godoc
+// @Summary      Update a group's name and/or icon
+// @Description  Updates the group's name and/or emoji. Any member may call this — unlike deleting a group, renaming or re-iconing it isn't destructive. Fields omitted from the request body are left unchanged.
+// @Tags         groups
+// @Accept       json
+// @Produce      json
+// @Param        id     path      int                 true  "Group ID"
+// @Param        group  body      UpdateGroupRequest  true  "Fields to update"
+// @Success      200    {object}  domain.Group
+// @Failure      400    {string}  string  "Bad Request"
+// @Failure      401    {string}  string  "Unauthorized"
+// @Failure      403    {string}  string  "Forbidden"
+// @Failure      404    {string}  string  "Not Found"
+// @Security     JWT
+// @Router       /groups/{id} [patch]
+func (h *GroupHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "invalid user id in token", http.StatusUnauthorized)
+		return
+	}
+
+	var req UpdateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Name != nil {
+		if err := validateMaxLen("name", *req.Name, maxNameLen); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.Emoji != nil {
+		if err := validateMaxLen("emoji", *req.Emoji, maxEmojiLen); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	group, err := h.groupService.UpdateGroup(r.Context(), uint(id), userID, req.Name, req.Emoji)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, group)
+	case errors.Is(err, service.ErrGroupNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, service.ErrNotGroupMember):
+		http.Error(w, err.Error(), http.StatusForbidden)
+	default:
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+}
+
 // ListGroups godoc
 // @Summary      List groups for the authenticated user
 // @Description  Retrieves all groups the authenticated user is a member of.
