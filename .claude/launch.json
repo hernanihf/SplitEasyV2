@@ -6,9 +6,10 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "cd /Users/hernan/Projects/antigravity/SplitEasy-app && npx expo start --web --port 8200"
+        "cd /Users/hernan/Projects/antigravity/SplitEasy-app && npx expo start --web"
       ],
-      "port": 8200
+      "port": 8200,
+      "autoPort": true
     }
   ]
 }
