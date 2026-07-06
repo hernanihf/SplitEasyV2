@@ -64,3 +64,15 @@ func mustGetEnv(key string) string {
 	}
 	return value
 }
+
+// mustGetEnvMinLen behaves like mustGetEnv but also fails startup if the
+// value is shorter than minLen — used for secrets (like JWT_SECRET) where a
+// short value is brute-forceable regardless of being "set".
+func mustGetEnvMinLen(key string, minLen int) string {
+	value := mustGetEnv(key)
+	if len(value) < minLen {
+		slog.Error("environment variable shorter than required minimum length", "key", key, "min_length", minLen, "actual_length", len(value))
+		os.Exit(1)
+	}
+	return value
+}

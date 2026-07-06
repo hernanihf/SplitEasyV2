@@ -1,14 +1,12 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
     container_name: spliteasy_db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: spliteasy
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-spliteasy}
     ports:
       - "5432:5432"
     volumes:
@@ -20,12 +18,17 @@ services:
     restart: on-failure
     depends_on:
       - db
+    # Brings in JWT_SECRET, GOOGLE_CLIENT_*, ANTHROPIC_API_KEY, etc. DB_* below
+    # override whatever .env has (e.g. DB_HOST=localhost) since the api
+    # container must reach Postgres via the "db" service name, not localhost.
+    env_file:
+      - .env
     environment:
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: spliteasy
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-spliteasy}
       DB_SSLMODE: disable
     ports:
       - "8080:8080"

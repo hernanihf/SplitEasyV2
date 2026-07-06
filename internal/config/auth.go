@@ -26,7 +26,9 @@ func InitAuth() {
 		Endpoint: google.Endpoint,
 	}
 
-	JWTSecret = []byte(mustGetEnv("JWT_SECRET"))
+	// HS256 needs at least 256 bits (32 bytes) of entropy per RFC 7518 §3.2 —
+	// a shorter secret is brute-forceable regardless of being "set".
+	JWTSecret = []byte(mustGetEnvMinLen("JWT_SECRET", 32))
 
 	FrontendRedirectURL = getEnv("FRONTEND_REDIRECT_URL", "http://localhost:8081/auth/callback")
 
