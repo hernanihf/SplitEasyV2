@@ -65,6 +65,10 @@ func (fakeGroupServiceForBalance) GetInviteToken(_ context.Context, _, _ uint) (
 	return "", nil
 }
 
+func (fakeGroupServiceForBalance) PreviewGroup(_ context.Context, _ string) (*domain.GroupPreview, error) {
+	return nil, nil
+}
+
 func (fakeGroupServiceForBalance) JoinGroup(_ context.Context, _ string, _ uint) (*domain.Group, error) {
 	return nil, nil
 }

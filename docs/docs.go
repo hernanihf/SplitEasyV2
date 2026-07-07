@@ -802,6 +802,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/groups/preview": {
+            "get": {
+                "description": "Returns the limited, non-member info an invite link points to (name, emoji, currency, member count) so the app can show a \"join this group?\" confirmation before actually joining. No authentication required — the invite token is the only credential needed, same as JoinGroup, and this returns strictly less than joining would expose.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Preview a group by invite token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Invite token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.GroupPreview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/groups/{groupId}/expenses": {
             "get": {
                 "security": [
@@ -2120,6 +2155,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.GroupPreview": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "emoji": {
+                    "type": "string"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
                     "type": "string"
                 }
             }

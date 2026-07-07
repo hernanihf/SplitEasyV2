@@ -167,6 +167,14 @@ func main() {
 		r.Post("/logout", authHandler.Logout)
 	})
 
+	// Public group preview — deliberately a standalone route (not nested
+	// under a "/api/v1/groups" sub-router) so it can't shadow the protected
+	// /groups and /groups/{id} routes chi registers below; a single r.Get
+	// here coexists fine with those, a second Route() on the same prefix
+	// would not. No JWTAuth: the whole point is to preview before signing
+	// in, and the invite token is all the credential PreviewGroup needs.
+	r.With(mymiddleware.MaxBytes(maxJSONBodyBytes)).Get("/api/v1/groups/preview", groupHandler.PreviewGroup)
+
 	// API Routes (Protected by JWT)
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(mymiddleware.JWTAuth)

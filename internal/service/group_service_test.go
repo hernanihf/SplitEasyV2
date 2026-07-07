@@ -147,6 +147,40 @@ func TestGetInviteToken_IsIdempotentOnceGenerated(t *testing.T) {
 	}
 }
 
+func TestPreviewGroup_ReturnsLimitedFields(t *testing.T) {
+	group := &domain.Group{
+		ID: 3, Name: "Trip to BA", Emoji: "🏔️", Currency: "ARS", CreatedBy: 7,
+		InviteToken: "valid-token",
+		Members:     []domain.User{{ID: 7}, {ID: 8}, {ID: 9}},
+	}
+	svc, _ := newGroupService(group)
+
+	preview, err := svc.PreviewGroup(context.Background(), "valid-token")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := domain.GroupPreview{Name: "Trip to BA", Emoji: "🏔️", Currency: "ARS", MemberCount: 3}
+	if *preview != want {
+		t.Errorf("expected %+v, got %+v", want, *preview)
+	}
+}
+
+func TestPreviewGroup_RejectsEmptyToken(t *testing.T) {
+	svc, _ := newGroupService(&domain.Group{ID: 1})
+
+	if _, err := svc.PreviewGroup(context.Background(), ""); err == nil {
+		t.Error("expected error for empty token")
+	}
+}
+
+func TestPreviewGroup_RejectsInvalidToken(t *testing.T) {
+	svc, _ := newGroupService(nil) // GetByInviteToken returns error when group is nil
+
+	if _, err := svc.PreviewGroup(context.Background(), "bogus"); err == nil {
+		t.Error("expected error for an invalid token")
+	}
+}
+
 func TestJoinGroup_AddsMember(t *testing.T) {
 	group := &domain.Group{ID: 3, InviteToken: "valid-token"}
 	svc, repo := newGroupService(group)

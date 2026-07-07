@@ -24,6 +24,10 @@ type GroupService interface {
 	GetGroup(ctx context.Context, id uint) (*domain.Group, error)
 	ListGroupsForUser(ctx context.Context, userID uint) ([]domain.Group, error)
 	GetInviteToken(ctx context.Context, groupID, userID uint) (string, error)
+	// PreviewGroup resolves an invite token to the group's limited public
+	// preview, with no membership (or even authentication) required — see
+	// domain.GroupPreview for why that's safe.
+	PreviewGroup(ctx context.Context, token string) (*domain.GroupPreview, error)
 	JoinGroup(ctx context.Context, token string, userID uint) (*domain.Group, error)
 	VerifyMembership(ctx context.Context, groupID, userID uint) error
 	// UpdateGroup changes the group's name and/or emoji — any member may
@@ -149,6 +153,28 @@ func (s *groupService) GetInviteToken(ctx context.Context, groupID, userID uint)
 	}
 
 	return group.InviteToken, nil
+}
+
+// PreviewGroup resolves an invite token to the group's name/emoji/currency
+// and member count — deliberately the same "invalid or expired invite link"
+// error JoinGroup uses for a bad token, so this endpoint can't be used to
+// distinguish "token doesn't exist" from any other failure.
+func (s *groupService) PreviewGroup(ctx context.Context, token string) (*domain.GroupPreview, error) {
+	if token == "" {
+		return nil, errors.New("invite token is required")
+	}
+
+	group, err := s.groupRepo.GetByInviteToken(ctx, token)
+	if err != nil {
+		return nil, errors.New("invalid or expired invite link")
+	}
+
+	return &domain.GroupPreview{
+		Name:        group.Name,
+		Emoji:       group.Emoji,
+		Currency:    group.Currency,
+		MemberCount: len(group.Members),
+	}, nil
 }
 
 // JoinGroup adds the user to the group identified by the invite token. It is

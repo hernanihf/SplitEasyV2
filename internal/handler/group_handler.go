@@ -327,6 +327,31 @@ func (h *GroupHandler) GetInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, InviteResponse{Token: token, URL: frontendJoinURL(token)})
 }
 
+// PreviewGroup godoc
+// @Summary      Preview a group by invite token
+// @Description  Returns the limited, non-member info an invite link points to (name, emoji, currency, member count) so the app can show a "join this group?" confirmation before actually joining. No authentication required — the invite token is the only credential needed, same as JoinGroup, and this returns strictly less than joining would expose.
+// @Tags         groups
+// @Produce      json
+// @Param        token  query     string  true  "Invite token"
+// @Success      200    {object}  domain.GroupPreview
+// @Failure      400    {string}  string  "Bad Request"
+// @Router       /groups/preview [get]
+func (h *GroupHandler) PreviewGroup(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if err := validateMaxLen("token", token, maxTokenLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	preview, err := h.groupService.PreviewGroup(r.Context(), token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, preview)
+}
+
 type JoinGroupRequest struct {
 	Token string `json:"token" example:"a1b2c3d4..."`
 }

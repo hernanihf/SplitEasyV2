@@ -26,3 +26,17 @@ type Group struct {
 	Members  []User    `gorm:"many2many:group_users;" json:"members"`
 	Expenses []Expense `json:"expenses,omitempty"`
 }
+
+// GroupPreview is the limited view of a group shown to someone who has an
+// invite link but isn't a member yet — before they commit to joining. It
+// deliberately excludes anything only a member should see: member identities,
+// the creator, the invite token itself, expenses, balances. Holding the
+// invite token already lets you become a full member (see JoinGroup), so
+// this can't leak more than joining would; it exists purely so joining is an
+// informed choice instead of a blind POST.
+type GroupPreview struct {
+	Name        string `json:"name"`
+	Emoji       string `json:"emoji"`
+	Currency    string `json:"currency"`
+	MemberCount int    `json:"member_count"`
+}
