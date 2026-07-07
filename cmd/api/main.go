@@ -130,7 +130,7 @@ func main() {
 	// A good base middleware stack
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
-	r.Use(chimiddleware.Logger)
+	r.Use(mymiddleware.RequestLogger)
 	r.Use(mymiddleware.Recoverer)
 
 	// CORS — the web/PWA frontend is served from a different origin than the
