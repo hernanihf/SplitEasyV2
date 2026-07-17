@@ -10,6 +10,11 @@ linters:
     - gosec
     - gocritic
   settings:
+    misspell:
+      # "restaurantes" is Spanish (Splitwise category names in the CSV
+      # importer), not a typo of "restaurants".
+      ignore-rules:
+        - restaurantes
     errcheck:
       # Closing a reader in a defer can't be handled meaningfully (nothing left
       # to do with the error at that point), so it stays excluded. json.Encode
