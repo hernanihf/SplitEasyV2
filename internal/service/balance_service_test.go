@@ -9,6 +9,11 @@ import (
 	"spliteasy/internal/domain"
 )
 
+type createdExpense struct {
+	expense *domain.Expense
+	splits  []domain.ExpenseSplit
+}
+
 type fakeExpenseRepo struct {
 	expenses []domain.Expense
 
@@ -17,9 +22,22 @@ type fakeExpenseRepo struct {
 	purgedCount          int64
 	purgeErr             error
 	purgeCalledWith      time.Time
+
+	created       []createdExpense
+	createErr     error
+	createErrOnNo int // if > 0, CreateWithSplits fails only on the createErrOnNo'th call (1-indexed)
 }
 
 func (f *fakeExpenseRepo) CreateWithSplits(_ context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, _ []domain.ExpenseItem) error {
+	if f.createErrOnNo > 0 && len(f.created)+1 == f.createErrOnNo {
+		f.created = append(f.created, createdExpense{expense, splits})
+		return f.createErr
+	}
+	if f.createErr != nil && f.createErrOnNo == 0 {
+		return f.createErr
+	}
+	expense.ID = uint(len(f.created) + 1)
+	f.created = append(f.created, createdExpense{expense, splits})
 	return nil
 }
 

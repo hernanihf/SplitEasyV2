@@ -234,6 +234,35 @@ definitions:
           $ref: '#/definitions/domain.OverallBalance'
         type: array
     type: object
+  domain.ImportPreview:
+    properties:
+      member_columns:
+        items:
+          type: string
+        type: array
+      rows:
+        items:
+          $ref: '#/definitions/domain.ImportRow'
+        type: array
+      skipped_rows:
+        type: integer
+    type: object
+  domain.ImportRow:
+    properties:
+      amount_cents:
+        type: integer
+      category:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      member_nets:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+    type: object
   domain.OverallBalance:
     properties:
       currency:
@@ -396,6 +425,27 @@ definitions:
       name:
         example: Trip to Paris
         type: string
+    type: object
+  handler.ImportRequest:
+    properties:
+      member_mapping:
+        additionalProperties:
+          type: integer
+        description: |-
+          MemberMapping maps a CSV member-column name (from the preview's
+          member_columns) to the group member's user ID it corresponds to.
+        type: object
+      rows:
+        items:
+          $ref: '#/definitions/domain.ImportRow'
+        type: array
+    type: object
+  handler.ImportResponse:
+    properties:
+      failed:
+        type: integer
+      imported:
+        type: integer
     type: object
   handler.InviteResponse:
     properties:
@@ -1242,6 +1292,105 @@ paths:
       security:
       - JWT: []
       summary: Get balances/debts of a group
+      tags:
+      - groups
+  /groups/{id}/import:
+    post:
+      consumes:
+      - application/json
+      description: Creates one expense per row using memberMapping to resolve each
+        row's payer and splits, preserving the original dates. Only allowed on a group
+        with no expenses or settlements yet — this is a one-time history migration,
+        not an ongoing sync.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Parsed rows and column-to-member mapping
+        in: body
+        name: import
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ImportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Import expenses from a previously-parsed CSV
+      tags:
+      - groups
+  /groups/{id}/import/preview:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Parses an uploaded CSV (e.g. a Splitwise export) into a preview
+        — detected member columns and structured rows — without creating anything.
+        The frontend uses this to let the user map each column to a real group member
+        before confirming.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Expense history CSV
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.ImportPreview'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Preview a Splitwise-style expense CSV import
       tags:
       - groups
   /groups/{id}/invite:

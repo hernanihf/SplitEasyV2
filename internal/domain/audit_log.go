@@ -14,6 +14,7 @@ const (
 	AuditActionSettlementCreated = "settlement.created"
 	AuditActionSettlementDeleted = "settlement.deleted"
 	AuditActionGroupDeleted      = "group.deleted"
+	AuditActionExpensesImported  = "expenses.imported"
 )
 
 const (

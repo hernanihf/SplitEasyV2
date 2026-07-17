@@ -46,6 +46,11 @@ import (
 // nowhere near enough for a memory-exhaustion attempt to be worthwhile.
 const maxJSONBodyBytes = 1 << 20 // 1MB
 
+// maxImportJSONBodyBytes covers the CSV-import confirm step, which echoes
+// back every parsed row (one per historical expense) instead of a single
+// record — a multi-year, many-member history can outgrow maxJSONBodyBytes.
+const maxImportJSONBodyBytes = 8 << 20 // 8MB
+
 func main() {
 	// JSON structured logging: production log aggregators need machine-parsable
 	// output to filter by level/field, which the stdlib "log" package can't do.
@@ -110,11 +115,13 @@ func main() {
 	}
 	purgeService := service.NewPurgeService(expenseRepo, jobRunRepo, storageService)
 	auditService := service.NewAuditService(auditLogRepo)
+	importService := service.NewImportService(groupRepo, expenseRepo, settlementRepo)
 
 	// 3. Init Handlers
 	userHandler := handler.NewUserHandler(userService, pushService)
 	groupHandler := handler.NewGroupHandler(groupService, auditService)
 	expenseHandler := handler.NewExpenseHandler(expenseService, groupService, storageService, pushService, auditService)
+	importHandler := handler.NewImportHandler(importService, groupService, auditService)
 	balanceHandler := handler.NewBalanceHandler(balanceService, groupService, pushService, auditService)
 	authHandler := handler.NewAuthHandler(authService)
 	receiptHandler := handler.NewReceiptHandler(receiptService)
@@ -229,6 +236,13 @@ func main() {
 
 		// Receipts — rate limited per user (the scan is slow and billed by Anthropic)
 		r.With(scanLimiter.Limit).Post("/receipts/scan", receiptHandler.ScanReceipt)
+
+		// CSV import — the file upload and the confirm step's row-by-row JSON
+		// body can both run well past the small JSON cap for a group with a
+		// long history, so each gets its own larger limit (set inside
+		// PreviewImport for the multipart upload; here for the JSON one).
+		r.Post("/groups/{id}/import/preview", importHandler.PreviewImport)
+		r.With(mymiddleware.MaxBytes(maxImportJSONBodyBytes)).Post("/groups/{id}/import", importHandler.ConfirmImport)
 	})
 
 	srv := &http.Server{
