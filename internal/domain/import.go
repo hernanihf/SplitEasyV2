@@ -27,4 +27,11 @@ type ImportPreview struct {
 	MemberColumns []string    `json:"member_columns"`
 	Rows          []ImportRow `json:"rows"`
 	SkippedRows   int         `json:"skipped_rows"`
+	// CurrencyMismatch is set to the CSV's own currency when every row was
+	// skipped for being in a different currency than the group's (e.g.
+	// importing an ARS-denominated Splitwise export into a USD group) —
+	// otherwise the CSV looks empty or corrupt with no indication why.
+	// Empty whenever at least one row matched, or rows were skipped for
+	// other reasons.
+	CurrencyMismatch string `json:"currency_mismatch,omitempty"`
 }

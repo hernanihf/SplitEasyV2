@@ -86,6 +86,7 @@ func (s *importService) ParsePreview(ctx context.Context, groupID uint, file io.
 	}
 
 	preview := &domain.ImportPreview{MemberColumns: memberColumns}
+	var mismatchedCurrency string
 	for _, rec := range records[1:] {
 		if len(rec) < 6 {
 			preview.SkippedRows++
@@ -96,8 +97,11 @@ func (s *importService) ParsePreview(ctx context.Context, groupID uint, file io.
 			preview.SkippedRows++
 			continue
 		}
-		if !strings.EqualFold(strings.TrimSpace(rec[4]), group.Currency) {
+		if rowCurrency := strings.TrimSpace(rec[4]); !strings.EqualFold(rowCurrency, group.Currency) {
 			preview.SkippedRows++
+			if mismatchedCurrency == "" {
+				mismatchedCurrency = strings.ToUpper(rowCurrency)
+			}
 			continue
 		}
 		amountCents, err := parseCents(rec[3])
@@ -126,6 +130,10 @@ func (s *importService) ParsePreview(ctx context.Context, groupID uint, file io.
 			AmountCents: amountCents,
 			MemberNets:  nets,
 		})
+	}
+
+	if len(preview.Rows) == 0 && mismatchedCurrency != "" {
+		preview.CurrencyMismatch = mismatchedCurrency
 	}
 
 	return preview, nil

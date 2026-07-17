@@ -86,6 +86,27 @@ func TestParsePreview_SkipsRowsInADifferentCurrency(t *testing.T) {
 	if len(preview.Rows) != 0 || preview.SkippedRows != 1 {
 		t.Errorf("expected the USD row to be skipped, got %d rows / %d skipped", len(preview.Rows), preview.SkippedRows)
 	}
+	if preview.CurrencyMismatch != "USD" {
+		t.Errorf("expected CurrencyMismatch %q, got %q", "USD", preview.CurrencyMismatch)
+	}
+}
+
+func TestParsePreview_CurrencyMismatchNotSetWhenSomeRowsMatch(t *testing.T) {
+	csv := "Fecha,Descripción,Categoría,Coste,Moneda,A,B\n" +
+		"2024-01-01,Cena,General,1000.00,ARS,500.00,-500.00\n" +
+		"2024-01-02,Almuerzo,General,1000.00,USD,500.00,-500.00\n"
+	svc, _, _, _ := newImportService(&domain.Group{ID: 1, Currency: "ARS"}, nil, nil)
+
+	preview, err := svc.ParsePreview(context.Background(), 1, strings.NewReader(csv))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(preview.Rows) != 1 || preview.SkippedRows != 1 {
+		t.Errorf("expected 1 row parsed and 1 skipped, got %d / %d", len(preview.Rows), preview.SkippedRows)
+	}
+	if preview.CurrencyMismatch != "" {
+		t.Errorf("expected no CurrencyMismatch when at least one row matched, got %q", preview.CurrencyMismatch)
+	}
 }
 
 func TestParsePreview_RejectsGarbageInput(t *testing.T) {
