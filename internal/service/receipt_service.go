@@ -43,6 +43,7 @@ var (
 // always one of the slugs the rest of the system accepts.
 var receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
 {"merchant_name": string, "date": string (ISO 8601 "YYYY-MM-DD" if found, else ""), "total_amount": number, "category": string, "items": [{"description": string, "price": number}]}
+"merchant_name" and every item's "description" must be transcribed exactly as printed on the receipt, in its original language — do not translate, paraphrase, or normalize them, even though these instructions are in English.
 "category" must be exactly one of: ` + strings.Join(domain.ExpenseCategorySlugs, ", ") + `. Pick the best fit for the merchant/purchase (e.g. a restaurant receipt is "food", a supermarket is "groceries", a gas station is "fuel"); use "other" only if nothing fits.
 If a field cannot be determined, use an empty string or 0. Amounts must be plain numbers without currency symbols.`
 
