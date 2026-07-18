@@ -18,11 +18,13 @@ import (
 
 type fakeReceiptService struct {
 	gotMimeType string
+	gotCurrency string
 	err         error
 }
 
-func (f *fakeReceiptService) ParseReceipt(_ context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
+func (f *fakeReceiptService) ParseReceipt(_ context.Context, imageBytes []byte, mimeType, currency string) (*domain.ReceiptScan, error) {
 	f.gotMimeType = mimeType
+	f.gotCurrency = currency
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -33,6 +35,13 @@ func (f *fakeReceiptService) ParseReceipt(_ context.Context, imageBytes []byte, 
 // spoofed) Content-Type on the file part, to make sure the handler doesn't
 // trust it.
 func newMultipartRequest(t *testing.T, filename, declaredContentType string, content []byte) *http.Request {
+	t.Helper()
+	return newMultipartRequestWithCurrency(t, filename, declaredContentType, content, "")
+}
+
+// newMultipartRequestWithCurrency is newMultipartRequest plus an optional
+// "currency" form field, for tests that need to verify it's threaded through.
+func newMultipartRequestWithCurrency(t *testing.T, filename, declaredContentType string, content []byte, currency string) *http.Request {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -47,6 +56,11 @@ func newMultipartRequest(t *testing.T, filename, declaredContentType string, con
 	}
 	if _, err := part.Write(content); err != nil {
 		t.Fatalf("write part: %v", err)
+	}
+	if currency != "" {
+		if err := w.WriteField("currency", currency); err != nil {
+			t.Fatalf("write currency field: %v", err)
+		}
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("close writer: %v", err)
@@ -89,6 +103,22 @@ func TestScanReceipt_DetectsDisguisedExecutable(t *testing.T) {
 
 	if fake.gotMimeType == "image/jpeg" {
 		t.Fatalf("expected the spoofed image/jpeg to be rejected by sniffing, got %q passed through", fake.gotMimeType)
+	}
+}
+
+func TestScanReceipt_ThreadsCurrencyToService(t *testing.T) {
+	fake := &fakeReceiptService{}
+	h := NewReceiptHandler(fake)
+	req := newMultipartRequestWithCurrency(t, "receipt.jpg", "image/jpeg", []byte("fake-bytes"), "ARS")
+
+	rec := httptest.NewRecorder()
+	h.ScanReceipt(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fake.gotCurrency != "ARS" {
+		t.Errorf("expected currency %q to reach the service, got %q", "ARS", fake.gotCurrency)
 	}
 }
 

@@ -58,7 +58,7 @@ func jsonResponse(status int, body string) *http.Response {
 func TestParseReceipt_RejectsMissingAPIKey(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "", "claude-3-5-sonnet-20241022", nil)
 
-	_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if !errors.Is(err, ErrReceiptScanningUnavailable) {
 		t.Errorf("expected ErrReceiptScanningUnavailable, got %v", err)
 	}
@@ -67,7 +67,7 @@ func TestParseReceipt_RejectsMissingAPIKey(t *testing.T) {
 func TestParseReceipt_RejectsEmptyImage(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	_, err := svc.ParseReceipt(context.Background(), []byte{}, "image/jpeg")
+	_, err := svc.ParseReceipt(context.Background(), []byte{}, "image/jpeg", "")
 	if !errors.Is(err, ErrReceiptImageEmpty) {
 		t.Errorf("expected ErrReceiptImageEmpty, got %v", err)
 	}
@@ -76,7 +76,7 @@ func TestParseReceipt_RejectsEmptyImage(t *testing.T) {
 func TestParseReceipt_RejectsUnsupportedMimeType(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	_, err := svc.ParseReceipt(context.Background(), []byte("fake-bytes"), "text/plain")
+	_, err := svc.ParseReceipt(context.Background(), []byte("fake-bytes"), "text/plain", "")
 	if !errors.Is(err, ErrReceiptUnsupportedType) {
 		t.Errorf("expected ErrReceiptUnsupportedType, got %v", err)
 	}
@@ -87,7 +87,7 @@ func TestParseReceipt_AcceptsPDFAsDocumentBlock(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	_, err := svc.ParseReceipt(context.Background(), []byte("fake-pdf-bytes"), "application/pdf")
+	_, err := svc.ParseReceipt(context.Background(), []byte("fake-pdf-bytes"), "application/pdf", "")
 	if err != nil {
 		t.Fatalf("unexpected error scanning a PDF: %v", err)
 	}
@@ -101,11 +101,42 @@ func TestParseReceipt_AcceptsPDFAsDocumentBlock(t *testing.T) {
 	}
 }
 
+func TestParseReceipt_NumberFormatHintMatchesGroupCurrency(t *testing.T) {
+	body := `{"content":[{"type":"text","text":"{\"merchant_name\":\"Acme\",\"date\":\"\",\"total_amount\":0,\"items\":[]}"}]}`
+
+	cases := []struct {
+		name     string
+		currency string
+		want     string
+	}{
+		{"comma-decimal currency", "ARS", "comma as the decimal separator"},
+		{"period-decimal currency", "USD", "period as the decimal separator"},
+		{"empty currency falls back to default (ARS, comma-decimal)", "", "comma as the decimal separator"},
+		{"invalid currency falls back to default (ARS, comma-decimal)", "XYZ", "comma as the decimal separator"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
+			svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
+
+			_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", tc.currency)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			sentBody, _ := io.ReadAll(doer.lastReq.Body)
+			if !bytes.Contains(sentBody, []byte(tc.want)) {
+				t.Errorf("expected prompt to contain %q for currency %q, got: %s", tc.want, tc.currency, sentBody)
+			}
+		})
+	}
+}
+
 func TestParseReceipt_RejectsOversizedImage(t *testing.T) {
 	svc := NewReceiptService(&fakeHTTPDoer{}, "test-key", "claude-3-5-sonnet-20241022", nil)
 
 	tooLarge := make([]byte, MaxReceiptImageBytes+1)
-	_, err := svc.ParseReceipt(context.Background(), tooLarge, "image/jpeg")
+	_, err := svc.ParseReceipt(context.Background(), tooLarge, "image/jpeg", "")
 	if !errors.Is(err, ErrReceiptFileTooLarge) {
 		t.Errorf("expected ErrReceiptFileTooLarge, got %v", err)
 	}
@@ -116,7 +147,7 @@ func TestParseReceipt_ParsesSuccessfulResponse(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,7 +171,7 @@ func TestParseReceipt_StripsMarkdownFences(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/png")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/png", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,7 +185,7 @@ func TestParseReceipt_KeepsValidSuggestedCategory(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +201,7 @@ func TestParseReceipt_CoercesUnknownCategoryToDefault(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusOK, body)}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", nil)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -184,7 +215,7 @@ func TestParseReceipt_ReturnsErrorOnNonOKStatus(t *testing.T) {
 	doer := &fakeHTTPDoer{response: jsonResponse(http.StatusUnauthorized, body)}
 	svc := NewReceiptService(doer, "bad-key", "claude-3-5-sonnet-20241022", nil)
 
-	_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	_, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err == nil {
 		t.Error("expected error on non-200 status")
 	}
@@ -196,7 +227,7 @@ func TestParseReceipt_UploadsImageAndSetsReceiptImagePath(t *testing.T) {
 	storage := &fakeStorageService{}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", storage)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,7 +250,7 @@ func TestParseReceipt_SucceedsWithoutImagePathWhenUploadFails(t *testing.T) {
 	storage := &fakeStorageService{uploadErr: errors.New("network error")}
 	svc := NewReceiptService(doer, "test-key", "claude-3-5-sonnet-20241022", storage)
 
-	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg")
+	scan, err := svc.ParseReceipt(context.Background(), []byte("fake-image-bytes"), "image/jpeg", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -22,7 +22,8 @@ func NewReceiptHandler(receiptService service.ReceiptService) *ReceiptHandler {
 // @Tags         expenses
 // @Accept       multipart/form-data
 // @Produce      json
-// @Param        image  formData  file  true  "Receipt file (jpeg, png, webp, gif or pdf)"
+// @Param        image     formData  file    true   "Receipt file (jpeg, png, webp, gif or pdf)"
+// @Param        currency  formData  string  false  "The scanning group's currency (ISO 4217) — tells the model which decimal/thousands-separator convention to expect. Defaults to the app's default currency if omitted."
 // @Success      200    {object}  domain.ReceiptScan
 // @Failure      400    {string}  string  "Bad Request"
 // @Failure      401    {string}  string  "Unauthorized"
@@ -58,7 +59,7 @@ func (h *ReceiptHandler) ScanReceipt(w http.ResponseWriter, r *http.Request) {
 	// bytes instead.
 	mimeType := http.DetectContentType(imageBytes)
 
-	scan, err := h.receiptService.ParseReceipt(r.Context(), imageBytes, mimeType)
+	scan, err := h.receiptService.ParseReceipt(r.Context(), imageBytes, mimeType, r.FormValue("currency"))
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrReceiptScanningUnavailable):

@@ -39,13 +39,49 @@ var (
 	ErrReceiptUnsupportedType     = errors.New("unsupported file type")
 )
 
-// receiptPrompt embeds the fixed category list so the model's suggestion is
-// always one of the slugs the rest of the system accepts.
-var receiptPrompt = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
+// receiptPromptBase embeds the fixed category list so the model's suggestion
+// is always one of the slugs the rest of the system accepts. numberFormatHint
+// for the group's own currency is appended per-request by receiptPrompt below
+// — the receipt itself is not a reliable source for this (country/locale
+// often isn't printed on it at all), but the group's currency always is.
+var receiptPromptBase = `You are extracting structured data from a store receipt, ticket or invoice (provided as an image or PDF). Respond with ONLY a single JSON object (no markdown fences, no explanation) matching exactly this shape:
 {"merchant_name": string, "date": string (ISO 8601 "YYYY-MM-DD" if found, else ""), "total_amount": number, "category": string, "items": [{"description": string, "price": number}]}
 "merchant_name" and every item's "description" must be transcribed exactly as printed on the receipt, in its original language — do not translate, paraphrase, or normalize them, even though these instructions are in English.
 "category" must be exactly one of: ` + strings.Join(domain.ExpenseCategorySlugs, ", ") + `. Pick the best fit for the merchant/purchase (e.g. a restaurant receipt is "food", a supermarket is "groceries", a gas station is "fuel"); use "other" only if nothing fits.
 If a field cannot be determined, use an empty string or 0. Amounts must be plain numbers without currency symbols.`
+
+// commaDecimalCurrencies are the group currencies (of domain.CurrencyCodes)
+// conventionally printed with a comma as the decimal separator and a period
+// as the thousands separator (e.g. "15.555,00"), as opposed to the
+// period-decimal convention ("15,555.00"). Every currency not listed here
+// falls into the period-decimal group.
+var commaDecimalCurrencies = map[string]bool{
+	"ARS": true,
+	"BRL": true,
+	"EUR": true,
+}
+
+// numberFormatHint tells the model which decimal/thousands-separator
+// convention to expect, keyed off the group's own currency rather than
+// anything printed on the receipt — a receipt frequently doesn't name its
+// country at all, but the group's currency is always known. Without this,
+// the model defaults to English conventions (matching the app's UI
+// language) and misreads e.g. an Argentine "15.555,00" as 15.555.
+func numberFormatHint(currency string) string {
+	if !domain.IsValidCurrency(currency) {
+		currency = domain.DefaultCurrency
+	}
+	if commaDecimalCurrencies[currency] {
+		return fmt.Sprintf(`
+This purchase is in %s. Amounts on the receipt use a comma as the decimal separator and a period as the thousands separator — e.g. "15.555,00" means fifteen thousand five hundred fifty-five (15555.00), not fifteen point five five five. Convert every amount to that true value.`, currency)
+	}
+	return fmt.Sprintf(`
+This purchase is in %s. Amounts on the receipt use a period as the decimal separator and a comma as the thousands separator — e.g. "15,555.00" means fifteen thousand five hundred fifty-five (15555.00).`, currency)
+}
+
+func receiptPrompt(currency string) string {
+	return receiptPromptBase + numberFormatHint(currency)
+}
 
 var supportedReceiptMimeTypes = map[string]bool{
 	"image/jpeg":      true,
@@ -71,7 +107,11 @@ type httpDoer interface {
 }
 
 type ReceiptService interface {
-	ParseReceipt(ctx context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error)
+	// currency is the scanning group's own currency (ISO 4217, one of
+	// domain.CurrencyCodes) — used only to tell the model which decimal/
+	// thousands-separator convention the receipt's amounts are printed in.
+	// An empty or invalid value falls back to domain.DefaultCurrency.
+	ParseReceipt(ctx context.Context, imageBytes []byte, mimeType, currency string) (*domain.ReceiptScan, error)
 }
 
 type receiptService struct {
@@ -145,7 +185,7 @@ type anthropicResponse struct {
 	} `json:"error"`
 }
 
-func (s *receiptService) ParseReceipt(ctx context.Context, imageBytes []byte, mimeType string) (*domain.ReceiptScan, error) {
+func (s *receiptService) ParseReceipt(ctx context.Context, imageBytes []byte, mimeType, currency string) (*domain.ReceiptScan, error) {
 	if s.apiKey == "" {
 		slog.Error("receipt scan requested but ANTHROPIC_API_KEY is not configured")
 		return nil, ErrReceiptScanningUnavailable
@@ -175,7 +215,7 @@ func (s *receiptService) ParseReceipt(ctx context.Context, imageBytes []byte, mi
 							Data:      base64.StdEncoding.EncodeToString(imageBytes),
 						},
 					},
-					{Type: "text", Text: receiptPrompt},
+					{Type: "text", Text: receiptPrompt(currency)},
 				},
 			},
 		},
