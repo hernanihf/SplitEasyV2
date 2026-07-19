@@ -151,7 +151,7 @@ func TestPreviewGroup_ReturnsLimitedFields(t *testing.T) {
 	group := &domain.Group{
 		ID: 3, Name: "Trip to BA", Emoji: "🏔️", Currency: "ARS", CreatedBy: 7,
 		InviteToken: "valid-token",
-		Members:     []domain.User{{ID: 7}, {ID: 8}, {ID: 9}},
+		Members:     []domain.User{{ID: 7, Name: "Hernán"}, {ID: 8, Name: "Cami"}, {ID: 9, Name: "Flor"}},
 	}
 	svc, _ := newGroupService(group)
 
@@ -159,9 +159,26 @@ func TestPreviewGroup_ReturnsLimitedFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := domain.GroupPreview{Name: "Trip to BA", Emoji: "🏔️", Currency: "ARS", MemberCount: 3}
+	want := domain.GroupPreview{Name: "Trip to BA", Emoji: "🏔️", Currency: "ARS", MemberCount: 3, CreatedByName: "Hernán"}
 	if *preview != want {
 		t.Errorf("expected %+v, got %+v", want, *preview)
+	}
+}
+
+func TestPreviewGroup_EmptyCreatedByNameWhenCreatorNoLongerAMember(t *testing.T) {
+	group := &domain.Group{
+		ID: 3, Name: "Trip to BA", CreatedBy: 99, // creator has since left
+		InviteToken: "valid-token",
+		Members:     []domain.User{{ID: 8, Name: "Cami"}},
+	}
+	svc, _ := newGroupService(group)
+
+	preview, err := svc.PreviewGroup(context.Background(), "valid-token")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if preview.CreatedByName != "" {
+		t.Errorf("expected empty CreatedByName, got %q", preview.CreatedByName)
 	}
 }
 

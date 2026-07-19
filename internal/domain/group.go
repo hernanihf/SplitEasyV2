@@ -29,14 +29,18 @@ type Group struct {
 
 // GroupPreview is the limited view of a group shown to someone who has an
 // invite link but isn't a member yet — before they commit to joining. It
-// deliberately excludes anything only a member should see: member identities,
-// the creator, the invite token itself, expenses, balances. Holding the
-// invite token already lets you become a full member (see JoinGroup), so
-// this can't leak more than joining would; it exists purely so joining is an
-// informed choice instead of a blind POST.
+// deliberately excludes anything only a member should see: the full member
+// list, the invite token itself, expenses, balances. Holding the invite
+// token already lets you become a full member (see JoinGroup), so this can't
+// leak more than joining would; it exists purely so joining is an informed
+// choice instead of a blind POST. CreatedByName is the one identity it does
+// surface — who to credit the invite to — since the group's invite link is
+// shared, not personal, so the creator is the closest available answer to
+// "who invited me" rather than the literal sender of this link.
 type GroupPreview struct {
-	Name        string `json:"name"`
-	Emoji       string `json:"emoji"`
-	Currency    string `json:"currency"`
-	MemberCount int    `json:"member_count"`
+	Name          string `json:"name"`
+	Emoji         string `json:"emoji"`
+	Currency      string `json:"currency"`
+	MemberCount   int    `json:"member_count"`
+	CreatedByName string `json:"created_by_name"`
 }

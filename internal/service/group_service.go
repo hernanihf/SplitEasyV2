@@ -169,11 +169,20 @@ func (s *groupService) PreviewGroup(ctx context.Context, token string) (*domain.
 		return nil, errors.New("invalid or expired invite link")
 	}
 
+	var createdByName string
+	for _, m := range group.Members {
+		if m.ID == group.CreatedBy {
+			createdByName = m.Name
+			break
+		}
+	}
+
 	return &domain.GroupPreview{
-		Name:        group.Name,
-		Emoji:       group.Emoji,
-		Currency:    group.Currency,
-		MemberCount: len(group.Members),
+		Name:          group.Name,
+		Emoji:         group.Emoji,
+		Currency:      group.Currency,
+		MemberCount:   len(group.Members),
+		CreatedByName: createdByName,
 	}, nil
 }
 
