@@ -309,6 +309,22 @@ func TestParseCents_RejectsEmptyOrGarbage(t *testing.T) {
 	}
 }
 
+func TestFixMojibake_RepairsDoubleEncodedUTF8(t *testing.T) {
+	cases := map[string]string{
+		"HernÃ¡n Iannello": "Hernán Iannello",
+		"CafÃ©":            "Café",
+		"Cami Vita Carino": "Cami Vita Carino", // plain ASCII — unaffected
+		"Hernán Iannello":  "Hernán Iannello",  // already correct — must not be double-repaired
+		"São Paulo":        "São Paulo",        // already-correct non-ASCII — must not be mangled
+		"":                 "",
+	}
+	for input, want := range cases {
+		if got := fixMojibake(input); got != want {
+			t.Errorf("fixMojibake(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestMapSplitwiseCategory_KnownAndUnknown(t *testing.T) {
 	cases := map[string]string{
 		"Alimentos":     "groceries",

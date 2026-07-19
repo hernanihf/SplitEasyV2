@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
@@ -82,7 +83,7 @@ func (s *importService) ParsePreview(ctx context.Context, groupID uint, file io.
 	// position rather than trying to recognize header text in every locale.
 	memberColumns := make([]string, len(records[0])-5)
 	for i, name := range records[0][5:] {
-		memberColumns[i] = strings.TrimSpace(name)
+		memberColumns[i] = fixMojibake(strings.TrimSpace(name))
 	}
 
 	preview := &domain.ImportPreview{MemberColumns: memberColumns}
@@ -125,7 +126,7 @@ func (s *importService) ParsePreview(ctx context.Context, groupID uint, file io.
 
 		preview.Rows = append(preview.Rows, domain.ImportRow{
 			Date:        date,
-			Description: strings.TrimSpace(rec[1]),
+			Description: fixMojibake(strings.TrimSpace(rec[1])),
 			Category:    mapSplitwiseCategory(rec[2]),
 			AmountCents: amountCents,
 			MemberNets:  nets,
@@ -256,6 +257,28 @@ func resolveSplits(row domain.ImportRow, memberMapping map[string]uint) (splits 
 	}
 
 	return splits, payerID, true
+}
+
+// fixMojibake repairs the specific "UTF-8 bytes misread as Latin-1/
+// Windows-1252, then re-encoded to UTF-8" corruption (e.g. "Hernán" arriving
+// as "HernÃ¡n") that some client/OS text-handling paths introduce on file
+// upload — encoding/csv itself is charset-agnostic and never does this. If
+// every rune fits in a byte (Latin-1's range), taking each rune's low byte
+// and re-decoding that as UTF-8 recovers the original text; if the result
+// isn't valid UTF-8, or any rune falls outside that range, it was never
+// mis-decoded in the first place and s is returned unchanged.
+func fixMojibake(s string) string {
+	bs := make([]byte, 0, len(s))
+	for _, r := range s {
+		if r > 0xFF {
+			return s
+		}
+		bs = append(bs, byte(r)) // #nosec G115 -- r is checked <= 0xFF above and range never yields negative runes
+	}
+	if utf8.Valid(bs) {
+		return string(bs)
+	}
+	return s
 }
 
 // parseCents parses a decimal amount string like "4000.00" or "-2000.00"
