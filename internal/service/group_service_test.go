@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 )
@@ -24,6 +25,9 @@ func (f *fakeUserRepoForGroups) GetByID(_ context.Context, id uint) (*domain.Use
 	return f.user, nil
 }
 func (f *fakeUserRepoForGroups) UpdatePushPreferences(_ context.Context, _ uint, _, _, _, _ bool) error {
+	return nil
+}
+func (f *fakeUserRepoForGroups) UpdateActivityLastSeenAt(_ context.Context, _ uint, _ time.Time) error {
 	return nil
 }
 

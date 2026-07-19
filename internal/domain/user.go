@@ -25,4 +25,9 @@ type User struct {
 	DefaultCurrency string    `gorm:"not null;default:'ARS'" json:"default_currency"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+	// ActivityLastSeenAt is when this user last viewed the activity feed —
+	// the cutoff for the unread-count badge (see SummaryService.
+	// GetUnreadActivityCount). Internal bookkeeping, not exposed to clients;
+	// the unread-count endpoint is the public contract for this.
+	ActivityLastSeenAt time.Time `json:"-"`
 }

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"spliteasy/internal/domain"
 
@@ -18,6 +19,9 @@ type UserRepository interface {
 	// current state (see SetPushPreferenceRequest), so there's no need for
 	// per-field partial updates.
 	UpdatePushPreferences(ctx context.Context, userID uint, enabled, expenses, payments, comments bool) error
+	// UpdateActivityLastSeenAt records when the user last viewed the
+	// activity feed — the cutoff SummaryService.GetUnreadActivityCount uses.
+	UpdateActivityLastSeenAt(ctx context.Context, userID uint, seenAt time.Time) error
 }
 
 type userRepository struct {
@@ -62,4 +66,9 @@ func (r *userRepository) UpdatePushPreferences(ctx context.Context, userID uint,
 			"push_payments_enabled": payments,
 			"push_comments_enabled": comments,
 		}).Error
+}
+
+func (r *userRepository) UpdateActivityLastSeenAt(ctx context.Context, userID uint, seenAt time.Time) error {
+	return r.db.WithContext(ctx).Model(&domain.User{}).Where("id = ?", userID).
+		Update("activity_last_seen_at", seenAt).Error
 }

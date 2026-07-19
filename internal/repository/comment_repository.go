@@ -12,6 +12,12 @@ type CommentRepository interface {
 	Create(ctx context.Context, comment *domain.Comment) error
 	GetByExpenseID(ctx context.Context, expenseID uint) ([]domain.Comment, error)
 	GetBySettlementID(ctx context.Context, settlementID uint) ([]domain.Comment, error)
+	// GetByExpenseIDs and GetBySettlementIDs are the batch form of the two
+	// methods above — used to build the activity feed across a group's
+	// expenses/settlements in one query each instead of one per row. Return
+	// (nil, nil) without querying when ids is empty.
+	GetByExpenseIDs(ctx context.Context, expenseIDs []uint) ([]domain.Comment, error)
+	GetBySettlementIDs(ctx context.Context, settlementIDs []uint) ([]domain.Comment, error)
 	GetByID(ctx context.Context, id uint) (*domain.Comment, error)
 	// Delete soft-deletes the comment (sets deleted_at); it's excluded from
 	// every normal query afterward but the row itself is kept.
@@ -55,6 +61,38 @@ func (r *commentRepository) GetBySettlementID(ctx context.Context, settlementID 
 	err := r.db.WithContext(ctx).
 		Preload("User").
 		Where("settlement_id = ?", settlementID).
+		Order("created_at asc").
+		Find(&comments).Error
+	if err != nil {
+		return nil, err
+	}
+	return comments, nil
+}
+
+func (r *commentRepository) GetByExpenseIDs(ctx context.Context, expenseIDs []uint) ([]domain.Comment, error) {
+	if len(expenseIDs) == 0 {
+		return nil, nil
+	}
+	var comments []domain.Comment
+	err := r.db.WithContext(ctx).
+		Preload("User").
+		Where("expense_id IN ?", expenseIDs).
+		Order("created_at asc").
+		Find(&comments).Error
+	if err != nil {
+		return nil, err
+	}
+	return comments, nil
+}
+
+func (r *commentRepository) GetBySettlementIDs(ctx context.Context, settlementIDs []uint) ([]domain.Comment, error) {
+	if len(settlementIDs) == 0 {
+		return nil, nil
+	}
+	var comments []domain.Comment
+	err := r.db.WithContext(ctx).
+		Preload("User").
+		Where("settlement_id IN ?", settlementIDs).
 		Order("created_at asc").
 		Find(&comments).Error
 	if err != nil {

@@ -107,7 +107,7 @@ func main() {
 	}
 	groupService := service.NewGroupService(groupRepo, userRepo, storageService)
 	receiptService := service.NewReceiptService(http.DefaultClient, config.AnthropicAPIKey, config.AnthropicModel, storageService)
-	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo)
+	summaryService := service.NewSummaryService(groupRepo, expenseRepo, settlementRepo, commentRepo, userRepo)
 	commentService := service.NewCommentService(commentRepo)
 	pushService := service.NewPushService(groupRepo, userRepo, pushSubRepo, http.DefaultClient, config.VAPIDPublicKey, config.VAPIDPrivateKey, config.VAPIDSubject)
 	if config.VAPIDPublicKey == "" || config.VAPIDPrivateKey == "" {
@@ -195,6 +195,8 @@ func main() {
 			// Home & activity
 			r.Get("/home", summaryHandler.GetHome)
 			r.Get("/activity", summaryHandler.GetActivity)
+			r.Get("/activity/unread-count", summaryHandler.GetUnreadActivityCount)
+			r.Post("/activity/seen", summaryHandler.MarkActivitySeen)
 
 			// Users
 			r.Get("/users/me", userHandler.GetMe)

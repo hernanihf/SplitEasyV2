@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 
@@ -32,6 +33,9 @@ func (f *fakeUserRepoForPush) UpdatePushPreferences(_ context.Context, userID ui
 	f.lastSetExpenses = expenses
 	f.lastSetPayments = payments
 	f.lastSetComments = comments
+	return nil
+}
+func (f *fakeUserRepoForPush) UpdateActivityLastSeenAt(_ context.Context, _ uint, _ time.Time) error {
 	return nil
 }
 

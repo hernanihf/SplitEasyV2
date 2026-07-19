@@ -95,6 +95,68 @@ func (f *fakeSettlementRepoByGroup) GetByGroupID(_ context.Context, groupID uint
 }
 func (f *fakeSettlementRepoByGroup) Delete(_ context.Context, _ uint) error { return nil }
 
+// fakeCommentRepoForSummary indexes comments by their parent id, mirroring
+// how the real repository's GetByExpenseIDs/GetBySettlementIDs filter.
+type fakeCommentRepoForSummary struct {
+	byExpenseID    map[uint][]domain.Comment
+	bySettlementID map[uint][]domain.Comment
+}
+
+func (f *fakeCommentRepoForSummary) Create(_ context.Context, _ *domain.Comment) error { return nil }
+func (f *fakeCommentRepoForSummary) GetByExpenseID(_ context.Context, id uint) ([]domain.Comment, error) {
+	return f.byExpenseID[id], nil
+}
+func (f *fakeCommentRepoForSummary) GetBySettlementID(_ context.Context, id uint) ([]domain.Comment, error) {
+	return f.bySettlementID[id], nil
+}
+func (f *fakeCommentRepoForSummary) GetByExpenseIDs(_ context.Context, ids []uint) ([]domain.Comment, error) {
+	var out []domain.Comment
+	for _, id := range ids {
+		out = append(out, f.byExpenseID[id]...)
+	}
+	return out, nil
+}
+func (f *fakeCommentRepoForSummary) GetBySettlementIDs(_ context.Context, ids []uint) ([]domain.Comment, error) {
+	var out []domain.Comment
+	for _, id := range ids {
+		out = append(out, f.bySettlementID[id]...)
+	}
+	return out, nil
+}
+func (f *fakeCommentRepoForSummary) GetByID(_ context.Context, _ uint) (*domain.Comment, error) {
+	return nil, errExpected
+}
+func (f *fakeCommentRepoForSummary) Delete(_ context.Context, _ uint) error { return nil }
+
+// fakeUserRepoForSummary is keyed by id so GetUnreadActivityCount can look up
+// ActivityLastSeenAt, and UpdateActivityLastSeenAt mutates that same map in
+// place so MarkActivitySeen's effect is observable within a test.
+type fakeUserRepoForSummary struct {
+	usersByID map[uint]*domain.User
+}
+
+func (f *fakeUserRepoForSummary) Create(_ context.Context, _ *domain.User) error { return nil }
+func (f *fakeUserRepoForSummary) GetByID(_ context.Context, id uint) (*domain.User, error) {
+	u, ok := f.usersByID[id]
+	if !ok {
+		return nil, errExpected
+	}
+	return u, nil
+}
+func (f *fakeUserRepoForSummary) GetByEmail(_ context.Context, _ string) (*domain.User, error) {
+	return nil, errExpected
+}
+func (f *fakeUserRepoForSummary) Update(_ context.Context, _ *domain.User) error { return nil }
+func (f *fakeUserRepoForSummary) UpdatePushPreferences(_ context.Context, _ uint, _, _, _, _ bool) error {
+	return nil
+}
+func (f *fakeUserRepoForSummary) UpdateActivityLastSeenAt(_ context.Context, userID uint, seenAt time.Time) error {
+	if u, ok := f.usersByID[userID]; ok {
+		u.ActivityLastSeenAt = seenAt
+	}
+	return nil
+}
+
 func TestGetHomeSummary_BreaksDownByCurrency(t *testing.T) {
 	groups := []domain.Group{
 		{ID: 1, Name: "USD Trip", Currency: "USD", Members: []domain.User{{ID: 1}, {ID: 2}}},
@@ -111,6 +173,8 @@ func TestGetHomeSummary_BreaksDownByCurrency(t *testing.T) {
 		&fakeGroupRepoForSummary{groups: groups},
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{},
 	)
 
 	summary, err := svc.GetHomeSummary(context.Background(), 1)
@@ -157,6 +221,8 @@ func TestGetActivity_CarriesGroupCurrency(t *testing.T) {
 		&fakeGroupRepoForSummary{groups: groups},
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{},
 	)
 
 	events, err := svc.GetActivity(context.Background(), 1)
@@ -189,6 +255,8 @@ func TestGetActivity_FlagsSoftDeletedExpense(t *testing.T) {
 		&fakeGroupRepoForSummary{groups: groups},
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{},
 	)
 
 	events, err := svc.GetActivity(context.Background(), 1)
@@ -203,5 +271,121 @@ func TestGetActivity_FlagsSoftDeletedExpense(t *testing.T) {
 	}
 	if events[0].DeletedByName != "Bob" {
 		t.Errorf("expected deleted_by_name %q, got %q", "Bob", events[0].DeletedByName)
+	}
+}
+
+func TestGetActivity_IncludesCommentsOnExpensesAndSettlements(t *testing.T) {
+	groups := []domain.Group{
+		{ID: 1, Name: "Asado", Currency: "ARS", Members: []domain.User{{ID: 1, Name: "Ana"}, {ID: 2, Name: "Bob"}}},
+	}
+	expensesByGroup := map[uint][]domain.Expense{
+		1: {{ID: 9, PaidByID: 1, Description: "Carne", Amount: 5000}},
+	}
+	settlementsByGroup := map[uint][]domain.Settlement{
+		1: {{ID: 3, FromUserID: 2, ToUserID: 1, Amount: 1000}},
+	}
+	expenseID := uint(9)
+	settlementID := uint(3)
+	commentRepo := &fakeCommentRepoForSummary{
+		byExpenseID: map[uint][]domain.Comment{
+			9: {{ID: 100, ExpenseID: &expenseID, UserID: 2, Body: "Gracias!", User: domain.User{ID: 2, Name: "Bob"}}},
+		},
+		bySettlementID: map[uint][]domain.Comment{
+			3: {{ID: 101, SettlementID: &settlementID, UserID: 1, Body: "Listo", User: domain.User{ID: 1, Name: "Ana"}}},
+		},
+	}
+
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{groups: groups},
+		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
+		&fakeSettlementRepoByGroup{byGroup: settlementsByGroup},
+		commentRepo,
+		&fakeUserRepoForSummary{},
+	)
+
+	events, err := svc.GetActivity(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var commentEvents []domain.ActivityEvent
+	for _, e := range events {
+		if e.Type == "comment" {
+			commentEvents = append(commentEvents, e)
+		}
+	}
+	if len(commentEvents) != 2 {
+		t.Fatalf("expected 2 comment events, got %d: %+v", len(commentEvents), commentEvents)
+	}
+
+	byParentType := map[string]domain.ActivityEvent{}
+	for _, e := range commentEvents {
+		byParentType[e.ParentType] = e
+	}
+
+	onExpense := byParentType["expense"]
+	if onExpense.ID != 9 || onExpense.Title != "Gracias!" || onExpense.ActorName != "Bob" || onExpense.ParentTitle != "Carne" {
+		t.Errorf("unexpected expense-comment event: %+v", onExpense)
+	}
+	onSettlement := byParentType["settlement"]
+	if onSettlement.ID != 3 || onSettlement.Title != "Listo" || onSettlement.ActorName != "Ana" {
+		t.Errorf("unexpected settlement-comment event: %+v", onSettlement)
+	}
+}
+
+func TestGetUnreadActivityCount_ExcludesOwnActionsAndOldEvents(t *testing.T) {
+	lastSeen := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	groups := []domain.Group{
+		{ID: 1, Name: "Asado", Members: []domain.User{{ID: 1, Name: "Ana"}, {ID: 2, Name: "Bob"}}},
+	}
+	expensesByGroup := map[uint][]domain.Expense{
+		1: {
+			// Before lastSeen — already seen, shouldn't count.
+			{ID: 1, PaidByID: 2, Description: "Old", Amount: 100, CreatedAt: lastSeen.Add(-time.Hour)},
+			// After lastSeen, by someone else — should count.
+			{ID: 2, PaidByID: 2, Description: "New from Bob", Amount: 200, CreatedAt: lastSeen.Add(time.Hour)},
+			// After lastSeen, but caused by the user themselves — shouldn't count.
+			{ID: 3, PaidByID: 1, Description: "New from me", Amount: 300, CreatedAt: lastSeen.Add(2 * time.Hour)},
+		},
+	}
+
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{groups: groups},
+		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
+		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{
+			1: {ID: 1, ActivityLastSeenAt: lastSeen},
+		}},
+	)
+
+	count, err := svc.GetUnreadActivityCount(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 unread event, got %d", count)
+	}
+}
+
+func TestMarkActivitySeen_UpdatesUserTimestamp(t *testing.T) {
+	userRepo := &fakeUserRepoForSummary{usersByID: map[uint]*domain.User{
+		1: {ID: 1},
+	}}
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{},
+		&fakeExpenseRepoByGroup{},
+		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		userRepo,
+	)
+
+	before := time.Now()
+	if err := svc.MarkActivitySeen(context.Background(), 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	after := userRepo.usersByID[1].ActivityLastSeenAt
+	if after.Before(before) {
+		t.Errorf("expected ActivityLastSeenAt to be updated to ~now, got %v (before test started: %v)", after, before)
 	}
 }

@@ -40,6 +40,24 @@ func (f *fakeCommentRepo) GetBySettlementID(_ context.Context, settlementID uint
 	return out, nil
 }
 
+func (f *fakeCommentRepo) GetByExpenseIDs(_ context.Context, expenseIDs []uint) ([]domain.Comment, error) {
+	var out []domain.Comment
+	for _, id := range expenseIDs {
+		matches, _ := f.GetByExpenseID(context.Background(), id)
+		out = append(out, matches...)
+	}
+	return out, nil
+}
+
+func (f *fakeCommentRepo) GetBySettlementIDs(_ context.Context, settlementIDs []uint) ([]domain.Comment, error) {
+	var out []domain.Comment
+	for _, id := range settlementIDs {
+		matches, _ := f.GetBySettlementID(context.Background(), id)
+		out = append(out, matches...)
+	}
+	return out, nil
+}
+
 func (f *fakeCommentRepo) GetByID(_ context.Context, id uint) (*domain.Comment, error) {
 	for _, c := range f.comments {
 		if c.ID == id {

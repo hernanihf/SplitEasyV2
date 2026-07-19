@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN activity_last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();

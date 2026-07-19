@@ -46,6 +46,9 @@ func (f *fakeUserRepoForAuth) Update(_ context.Context, _ *domain.User) error { 
 func (f *fakeUserRepoForAuth) UpdatePushPreferences(_ context.Context, _ uint, _, _, _, _ bool) error {
 	return nil
 }
+func (f *fakeUserRepoForAuth) UpdateActivityLastSeenAt(_ context.Context, _ uint, _ time.Time) error {
+	return nil
+}
 
 func (f *fakeUserRepoForAuth) GetByEmail(_ context.Context, _ string) (*domain.User, error) {
 	return nil, errors.New("not implemented")
