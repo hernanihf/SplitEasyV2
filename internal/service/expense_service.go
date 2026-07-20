@@ -269,8 +269,12 @@ func (s *expenseService) DeleteExpense(ctx context.Context, expenseID, callerID 
 	return s.expenseRepo.Delete(ctx, expenseID, callerID)
 }
 
+// GetExpense retrieves an expense for viewing, including a soft-deleted one
+// (unlike every other expenseRepo.GetByID call site) — the handler already
+// scopes this to group members only, and a deleted expense still needs to
+// be viewable read-only so the group can see what it was for.
 func (s *expenseService) GetExpense(ctx context.Context, expenseID uint) (*domain.Expense, error) {
-	expense, err := s.expenseRepo.GetByID(ctx, expenseID)
+	expense, err := s.expenseRepo.GetByIDIncludingDeleted(ctx, expenseID)
 	if err != nil {
 		return nil, ErrExpenseNotFound
 	}

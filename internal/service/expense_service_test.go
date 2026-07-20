@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"spliteasy/internal/domain"
+
+	"gorm.io/gorm"
 )
 
 type fakeExpenseRepoForCreate struct {
@@ -42,6 +44,13 @@ func (f *fakeExpenseRepoForCreate) UpdateWithSplits(_ context.Context, expense *
 }
 
 func (f *fakeExpenseRepoForCreate) GetByID(_ context.Context, id uint) (*domain.Expense, error) {
+	if f.existing == nil || f.existing.ID != id {
+		return nil, errExpected
+	}
+	return f.existing, nil
+}
+
+func (f *fakeExpenseRepoForCreate) GetByIDIncludingDeleted(_ context.Context, id uint) (*domain.Expense, error) {
 	if f.existing == nil || f.existing.ID != id {
 		return nil, errExpected
 	}
@@ -524,6 +533,29 @@ func TestGetExpense_ReturnsAnyGroupMemberTheExpense(t *testing.T) {
 	}
 	if got.ID != 5 {
 		t.Errorf("expected expense id 5, got %d", got.ID)
+	}
+}
+
+func TestGetExpense_ReturnsSoftDeletedExpenseReadOnly(t *testing.T) {
+	// A deleted expense must still be viewable — e.g. so the group can see
+	// what it was for during a dispute — even though it's excluded from
+	// every other query (balances, group history's normal list, etc.).
+	members := []domain.User{{ID: 1}, {ID: 2}}
+	svc, repo := newTestExpenseService(members)
+	deleted := existingTwoPersonExpense()
+	deleted.DeletedAt = gorm.DeletedAt{Time: time.Now(), Valid: true}
+	deleted.DeletedBy = &domain.User{ID: 2, Name: "Bob"}
+	repo.existing = deleted
+
+	got, err := svc.GetExpense(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got.DeletedAt.Valid {
+		t.Error("expected the returned expense to still be flagged as deleted")
+	}
+	if got.DeletedBy == nil || got.DeletedBy.Name != "Bob" {
+		t.Errorf("expected DeletedBy to carry through, got %+v", got.DeletedBy)
 	}
 }
 

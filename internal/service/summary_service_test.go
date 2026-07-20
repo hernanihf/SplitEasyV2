@@ -66,6 +66,9 @@ func (f *fakeExpenseRepoByGroup) UpdateWithSplits(_ context.Context, _ *domain.E
 func (f *fakeExpenseRepoByGroup) GetByID(_ context.Context, _ uint) (*domain.Expense, error) {
 	return nil, errExpected
 }
+func (f *fakeExpenseRepoByGroup) GetByIDIncludingDeleted(_ context.Context, _ uint) (*domain.Expense, error) {
+	return nil, errExpected
+}
 func (f *fakeExpenseRepoByGroup) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return f.byGroup[groupID], nil
 }

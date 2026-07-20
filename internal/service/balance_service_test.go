@@ -54,6 +54,10 @@ func (f *fakeExpenseRepo) GetByID(_ context.Context, id uint) (*domain.Expense, 
 	return nil, errExpected
 }
 
+func (f *fakeExpenseRepo) GetByIDIncludingDeleted(_ context.Context, id uint) (*domain.Expense, error) {
+	return f.GetByID(context.Background(), id)
+}
+
 func (f *fakeExpenseRepo) GetByGroupID(_ context.Context, groupID uint) ([]domain.Expense, error) {
 	return f.expenses, nil
 }

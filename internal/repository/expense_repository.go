@@ -16,6 +16,12 @@ type ExpenseRepository interface {
 	// deleted and the new ones inserted, all in one transaction.
 	UpdateWithSplits(ctx context.Context, expense *domain.Expense, splits []domain.ExpenseSplit, items []domain.ExpenseItem) error
 	GetByID(ctx context.Context, id uint) (*domain.Expense, error)
+	// GetByIDIncludingDeleted is like GetByID but also finds a soft-deleted
+	// expense (with DeletedBy preloaded) — for read-only viewing of a
+	// deleted expense (e.g. settling a "what was this for?" dispute), never
+	// for an edit/delete path, which must keep using GetByID so an
+	// already-deleted expense can't be mutated again.
+	GetByIDIncludingDeleted(ctx context.Context, id uint) (*domain.Expense, error)
 	GetByGroupID(ctx context.Context, groupID uint) ([]domain.Expense, error)
 	// GetByGroupIDIncludingDeleted is like GetByGroupID but also returns
 	// soft-deleted expenses (with DeletedBy preloaded), for the group's
@@ -148,6 +154,22 @@ func (r *expenseRepository) GetByID(ctx context.Context, id uint) (*domain.Expen
 	err := r.db.WithContext(ctx).
 		Preload("Splits").
 		Preload("PaidBy").
+		Preload("Items").
+		Preload("Items.Users").
+		First(&expense, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &expense, nil
+}
+
+func (r *expenseRepository) GetByIDIncludingDeleted(ctx context.Context, id uint) (*domain.Expense, error) {
+	var expense domain.Expense
+	err := r.db.WithContext(ctx).
+		Unscoped().
+		Preload("Splits").
+		Preload("PaidBy").
+		Preload("DeletedBy").
 		Preload("Items").
 		Preload("Items.Users").
 		First(&expense, id).Error
