@@ -125,10 +125,16 @@ func (s *summaryService) GetHomeSummary(ctx context.Context, userID uint) (*doma
 }
 
 // buildActivityEvents gathers every expense, settlement, and comment event
-// across the user's groups, newest first, uncapped — shared by GetActivity
-// (which trims to maxEvents) and GetUnreadActivityCount (which needs the
+// across the user's groups, newest first, uncapped, with IsUnread already
+// set on each — shared by GetActivity (which trims to maxEvents, letting the
+// feed highlight unread rows) and GetUnreadActivityCount (which needs the
 // true total, not just the most recent page of it).
 func (s *summaryService) buildActivityEvents(ctx context.Context, userID uint) ([]domain.ActivityEvent, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	groups, err := s.groupRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -257,6 +263,13 @@ func (s *summaryService) buildActivityEvents(ctx context.Context, userID uint) (
 		return events[i].Date.After(events[j].Date)
 	})
 
+	// An event is unread if it happened after the user last viewed the feed
+	// and they didn't cause it themselves (no badge/highlight for your own
+	// actions).
+	for i := range events {
+		events[i].IsUnread = events[i].Date.After(user.ActivityLastSeenAt) && events[i].ActorID != userID
+	}
+
 	return events, nil
 }
 
@@ -275,11 +288,6 @@ func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain
 }
 
 func (s *summaryService) GetUnreadActivityCount(ctx context.Context, userID uint) (int, error) {
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return 0, err
-	}
-
 	events, err := s.buildActivityEvents(ctx, userID)
 	if err != nil {
 		return 0, err
@@ -287,7 +295,7 @@ func (s *summaryService) GetUnreadActivityCount(ctx context.Context, userID uint
 
 	count := 0
 	for _, e := range events {
-		if e.Date.After(user.ActivityLastSeenAt) && e.ActorID != userID {
+		if e.IsUnread {
 			count++
 		}
 	}

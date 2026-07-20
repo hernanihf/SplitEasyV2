@@ -225,7 +225,7 @@ func TestGetActivity_CarriesGroupCurrency(t *testing.T) {
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{},
 		&fakeCommentRepoForSummary{},
-		&fakeUserRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
 	events, err := svc.GetActivity(context.Background(), 1)
@@ -259,7 +259,7 @@ func TestGetActivity_FlagsSoftDeletedExpense(t *testing.T) {
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{},
 		&fakeCommentRepoForSummary{},
-		&fakeUserRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
 	events, err := svc.GetActivity(context.Background(), 1)
@@ -303,7 +303,7 @@ func TestGetActivity_IncludesCommentsOnExpensesAndSettlements(t *testing.T) {
 		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
 		&fakeSettlementRepoByGroup{byGroup: settlementsByGroup},
 		commentRepo,
-		&fakeUserRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
 	events, err := svc.GetActivity(context.Background(), 1)
@@ -368,6 +368,52 @@ func TestGetUnreadActivityCount_ExcludesOwnActionsAndOldEvents(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected 1 unread event, got %d", count)
+	}
+}
+
+func TestGetActivity_FlagsIsUnreadPerEvent(t *testing.T) {
+	lastSeen := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	groups := []domain.Group{
+		{ID: 1, Name: "Asado", Members: []domain.User{{ID: 1, Name: "Ana"}, {ID: 2, Name: "Bob"}}},
+	}
+	expensesByGroup := map[uint][]domain.Expense{
+		1: {
+			// Before lastSeen — read.
+			{ID: 1, PaidByID: 2, Description: "Old", Amount: 100, CreatedAt: lastSeen.Add(-time.Hour)},
+			// After lastSeen, by someone else — unread.
+			{ID: 2, PaidByID: 2, Description: "New from Bob", Amount: 200, CreatedAt: lastSeen.Add(time.Hour)},
+			// After lastSeen, but caused by the user themselves — read.
+			{ID: 3, PaidByID: 1, Description: "New from me", Amount: 300, CreatedAt: lastSeen.Add(2 * time.Hour)},
+		},
+	}
+
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{groups: groups},
+		&fakeExpenseRepoByGroup{byGroup: expensesByGroup},
+		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{
+			1: {ID: 1, ActivityLastSeenAt: lastSeen},
+		}},
+	)
+
+	events, err := svc.GetActivity(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	byID := map[uint]domain.ActivityEvent{}
+	for _, e := range events {
+		byID[e.ID] = e
+	}
+	if byID[1].IsUnread {
+		t.Error("expected old event to be read")
+	}
+	if !byID[2].IsUnread {
+		t.Error("expected new event from someone else to be unread")
+	}
+	if byID[3].IsUnread {
+		t.Error("expected the user's own new event to be read")
 	}
 }
 

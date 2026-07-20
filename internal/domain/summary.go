@@ -69,4 +69,9 @@ type ActivityEvent struct {
 	// the feed can render "commented on <ParentTitle>".
 	ParentType  string `json:"parent_type,omitempty"`
 	ParentTitle string `json:"parent_title,omitempty"`
+	// IsUnread is true when this event happened after the user's
+	// ActivityLastSeenAt and they didn't cause it themselves — same rule
+	// GetUnreadActivityCount uses, computed once here so the feed can
+	// highlight individual rows instead of just showing a total badge.
+	IsUnread bool `json:"is_unread"`
 }
