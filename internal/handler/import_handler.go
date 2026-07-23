@@ -151,3 +151,41 @@ func (h *ImportHandler) ConfirmImport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 }
+
+// ExportGroupCSV godoc
+// @Summary      Export a group's history as a Splitwise-compatible CSV
+// @Description  Downloads every expense and settlement in the group as a CSV in the same column shape Splitwise's own export uses — opens directly in Splitwise, or back into this app via the CSV import above.
+// @Tags         groups
+// @Produce      text/csv
+// @Param        id  path  int  true  "Group ID"
+// @Success      200  {file}    file
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Security     JWT
+// @Router       /groups/{id}/export.csv [get]
+func (h *ImportHandler) ExportGroupCSV(w http.ResponseWriter, r *http.Request) {
+	groupID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
+		return
+	}
+
+	data, filename, err := h.importService.ExportGroupCSV(r.Context(), uint(groupID))
+	if err != nil {
+		if errors.Is(err, service.ErrGroupNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		internalError(w, "failed to export group CSV", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}

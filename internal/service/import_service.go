@@ -1,10 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +44,13 @@ type ImportService interface {
 	// or settlements yet (see ErrGroupNotEmpty) — this is a one-time
 	// "migrate my history" action, not an ongoing sync.
 	Import(ctx context.Context, groupID, callerID uint, rows []domain.ImportRow, memberMapping map[string]uint) (ImportResult, error)
+	// ExportGroupCSV builds a CSV of every expense and settlement in the
+	// group in the same [Date, Description, Category, Cost, Currency,
+	// ...one column per member...] shape ParsePreview reads — so it opens
+	// directly in Splitwise, and a group exported here round-trips back in
+	// through this app's own importer. filename is derived from the
+	// group's name for the download's Content-Disposition header.
+	ExportGroupCSV(ctx context.Context, groupID uint) (data []byte, filename string, err error)
 }
 
 type importService struct {
@@ -198,6 +208,199 @@ func (s *importService) Import(ctx context.Context, groupID, callerID uint, rows
 	}
 
 	return result, nil
+}
+
+// ExportGroupCSV lays out each expense/settlement's per-member effect on
+// their own column — the same net-cents shape resolveSplits reconstructs a
+// payer and splits from — so the two are inverses of each other.
+func (s *importService) ExportGroupCSV(ctx context.Context, groupID uint) ([]byte, string, error) {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, "", ErrGroupNotFound
+	}
+
+	expenses, err := s.expenseRepo.GetByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, "", err
+	}
+	settlements, err := s.settlementRepo.GetByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	memberNames := make([]string, len(group.Members))
+	memberIndex := make(map[uint]int, len(group.Members))
+	for i, m := range group.Members {
+		memberNames[i] = m.Name
+		memberIndex[m.ID] = i
+	}
+
+	type exportRow struct {
+		date        time.Time
+		description string
+		category    string
+		amountCents int64
+		nets        []int64
+	}
+
+	rows := make([]exportRow, 0, len(expenses)+len(settlements))
+	totals := make([]int64, len(memberNames))
+
+	for _, e := range expenses {
+		nets := make([]int64, len(memberNames))
+		if idx, ok := memberIndex[e.PaidByID]; ok {
+			nets[idx] += e.Amount
+		}
+		for _, sp := range e.Splits {
+			if idx, ok := memberIndex[sp.UserID]; ok {
+				nets[idx] -= sp.Amount
+			}
+		}
+		for i, n := range nets {
+			totals[i] += n
+		}
+		rows = append(rows, exportRow{
+			date:        e.CreatedAt,
+			description: e.Description,
+			category:    splitwiseCategoryName(e.Category),
+			amountCents: e.Amount,
+			nets:        nets,
+		})
+	}
+
+	for _, st := range settlements {
+		nets := make([]int64, len(memberNames))
+		if idx, ok := memberIndex[st.FromUserID]; ok {
+			nets[idx] += st.Amount
+		}
+		if idx, ok := memberIndex[st.ToUserID]; ok {
+			nets[idx] -= st.Amount
+		}
+		for i, n := range nets {
+			totals[i] += n
+		}
+		rows = append(rows, exportRow{
+			date:        st.CreatedAt,
+			description: "Payment",
+			category:    "Payment",
+			amountCents: st.Amount,
+			nets:        nets,
+		})
+	}
+
+	sort.Slice(rows, func(i, j int) bool { return rows[i].date.Before(rows[j].date) })
+
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+
+	header := append([]string{"Date", "Description", "Category", "Cost", "Currency"}, memberNames...)
+	if err := w.Write(header); err != nil {
+		return nil, "", err
+	}
+
+	// Splitwise's own export leads with this summary row — Date/Category/
+	// Cost/Currency blank, just each member's running balance — which is
+	// also exactly why ParsePreview above tolerates ragged/short rows.
+	totalRow := append([]string{"", "Total balance", "", "", ""}, formatCentsList(totals)...)
+	if err := w.Write(totalRow); err != nil {
+		return nil, "", err
+	}
+
+	for _, r := range rows {
+		rec := append([]string{
+			r.date.Format(csvDateLayout),
+			r.description,
+			r.category,
+			formatCents(r.amountCents),
+			group.Currency,
+		}, formatCentsList(r.nets)...)
+		if err := w.Write(rec); err != nil {
+			return nil, "", err
+		}
+	}
+
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, "", err
+	}
+
+	return buf.Bytes(), exportFilename(group.Name), nil
+}
+
+// formatCents renders integer cents as a fixed 2-decimal string (e.g. -1050
+// -> "-10.50"), the inverse of parseCents.
+func formatCents(cents int64) string {
+	neg := cents < 0
+	if neg {
+		cents = -cents
+	}
+	s := fmt.Sprintf("%d.%02d", cents/100, cents%100)
+	if neg {
+		s = "-" + s
+	}
+	return s
+}
+
+func formatCentsList(values []int64) []string {
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = formatCents(v)
+	}
+	return out
+}
+
+// exportFilename turns a group name into a safe ASCII CSV filename for the
+// download's Content-Disposition header, falling back to a generic name if
+// the group name has nothing but punctuation/accents to offer.
+func exportFilename(groupName string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(groupName) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == ' ' || r == '-' || r == '_':
+			b.WriteRune('-')
+		}
+	}
+	name := strings.Trim(b.String(), "-")
+	if name == "" {
+		name = "group"
+	}
+	return name + "-splitwise.csv"
+}
+
+// splitwiseCategoryName reverse-maps one of our category slugs back to a
+// Splitwise category name — chosen so re-running it through
+// mapSplitwiseCategory recovers the same slug, except "coffee" (a slug of
+// ours Splitwise has no equivalent for) which falls back to "food".
+func splitwiseCategoryName(slug string) string {
+	if name, ok := splitwiseCategoryNameBySlug[slug]; ok {
+		return name
+	}
+	return "General"
+}
+
+var splitwiseCategoryNameBySlug = map[string]string{
+	"food":          "Dining out",
+	"groceries":     "Groceries",
+	"coffee":        "Food and drink - other",
+	"drinks":        "Liquor",
+	"transport":     "Other transportation",
+	"fuel":          "Gas/fuel",
+	"travel":        "Plane",
+	"accommodation": "Hotel",
+	"housing":       "Rent",
+	"utilities":     "Other utilities",
+	"internet":      "TV/Phone/Internet",
+	"entertainment": "Other entertainment",
+	"sports":        "Sports",
+	"shopping":      "Clothing",
+	"health":        "Medical expenses",
+	"education":     "Education",
+	"gifts":         "Gifts",
+	"pets":          "Pets",
+	"household":     "Household supplies",
+	"other":         "General",
 }
 
 // resolveSplits turns one row's per-column net cents into a payer and a

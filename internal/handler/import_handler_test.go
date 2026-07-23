@@ -24,6 +24,10 @@ type fakeImportService struct {
 	importErr    error
 	gotRows      []domain.ImportRow
 	gotMapping   map[string]uint
+
+	exportData     []byte
+	exportFilename string
+	exportErr      error
 }
 
 func (f *fakeImportService) ParsePreview(_ context.Context, groupID uint, _ io.Reader) (*domain.ImportPreview, error) {
@@ -36,6 +40,11 @@ func (f *fakeImportService) Import(_ context.Context, groupID, _ uint, rows []do
 	f.gotRows = rows
 	f.gotMapping = mapping
 	return f.importResult, f.importErr
+}
+
+func (f *fakeImportService) ExportGroupCSV(_ context.Context, groupID uint) ([]byte, string, error) {
+	f.gotGroupID = groupID
+	return f.exportData, f.exportFilename, f.exportErr
 }
 
 func newMultipartCSVRequest(t *testing.T, groupID, filename string, content []byte) *http.Request {
@@ -195,6 +204,43 @@ func TestConfirmImport_RejectsUnauthenticated(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
 	h.ConfirmImport(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestExportGroupCSV_Success(t *testing.T) {
+	fake := &fakeImportService{exportData: []byte("Date,Description,Category,Cost,Currency,Ana\n"), exportFilename: "asado-splitwise.csv"}
+	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/groups/1/export.csv", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(7)))
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h.ExportGroupCSV(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fake.gotGroupID != 1 {
+		t.Errorf("expected group id 1, got %d", fake.gotGroupID)
+	}
+	if got := rec.Header().Get("Content-Disposition"); got != `attachment; filename="asado-splitwise.csv"` {
+		t.Errorf("unexpected Content-Disposition: %q", got)
+	}
+	if rec.Body.String() != "Date,Description,Category,Cost,Currency,Ana\n" {
+		t.Errorf("unexpected body: %q", rec.Body.String())
+	}
+}
+
+func TestExportGroupCSV_RejectsUnauthenticated(t *testing.T) {
+	fake := &fakeImportService{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/groups/1/export.csv", nil)
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
+	h.ExportGroupCSV(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)

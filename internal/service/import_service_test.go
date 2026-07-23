@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"strings"
 	"testing"
@@ -278,6 +279,74 @@ func TestImport_OneFailingRowDoesNotAbortTheRest(t *testing.T) {
 	if result.Imported != 2 || result.Failed != 1 {
 		t.Fatalf("expected 2 imported / 1 failed, got %+v", result)
 	}
+}
+
+func TestExportGroupCSV_RoundTripsExpensesAndSettlements(t *testing.T) {
+	group := &domain.Group{
+		ID:       1,
+		Name:     "Asado!",
+		Currency: "ARS",
+		Members:  []domain.User{{ID: 1, Name: "Ana"}, {ID: 2, Name: "Bob"}},
+	}
+	expenses := []domain.Expense{{
+		ID: 9, PaidByID: 1, Description: "Carne", Category: "food", Amount: 1000,
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Splits:    []domain.ExpenseSplit{{UserID: 1, Amount: 500}, {UserID: 2, Amount: 500}},
+	}}
+	settlements := []domain.Settlement{{
+		ID: 3, FromUserID: 2, ToUserID: 1, Amount: 300,
+		CreatedAt: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
+	}}
+	svc, _, _, _ := newImportService(group, expenses, settlements)
+
+	data, filename, err := svc.ExportGroupCSV(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "asado-splitwise.csv" {
+		t.Errorf("expected filename %q, got %q", "asado-splitwise.csv", filename)
+	}
+
+	records, err := csv.NewReader(strings.NewReader(string(data))).ReadAll()
+	if err != nil {
+		t.Fatalf("could not parse generated CSV: %v", err)
+	}
+	if len(records) != 4 {
+		t.Fatalf("expected 4 records (header + total + 2 rows), got %d: %v", len(records), records)
+	}
+
+	if want := []string{"Date", "Description", "Category", "Cost", "Currency", "Ana", "Bob"}; !equalRecords(records[0], want) {
+		t.Errorf("header = %v, want %v", records[0], want)
+	}
+	if want := []string{"", "Total balance", "", "", "", "2.00", "-2.00"}; !equalRecords(records[1], want) {
+		t.Errorf("total row = %v, want %v", records[1], want)
+	}
+	if want := []string{"2024-01-01", "Carne", "Dining out", "10.00", "ARS", "5.00", "-5.00"}; !equalRecords(records[2], want) {
+		t.Errorf("expense row = %v, want %v", records[2], want)
+	}
+	if want := []string{"2024-01-02", "Payment", "Payment", "3.00", "ARS", "-3.00", "3.00"}; !equalRecords(records[3], want) {
+		t.Errorf("settlement row = %v, want %v", records[3], want)
+	}
+}
+
+func TestExportGroupCSV_GroupNotFound(t *testing.T) {
+	svc, _, _, _ := newImportService(nil, nil, nil)
+
+	if _, _, err := svc.ExportGroupCSV(context.Background(), 1); !errors.Is(err, ErrGroupNotFound) {
+		t.Errorf("expected ErrGroupNotFound, got %v", err)
+	}
+}
+
+func equalRecords(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestParseCents_ParsesPositiveAndNegativeAmounts(t *testing.T) {

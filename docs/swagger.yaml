@@ -7,12 +7,13 @@ definitions:
       actor_name:
         type: string
       amount:
-        description: cents
+        description: cents — 0 for comments
         type: integer
       category:
         description: |-
-          Category is the expense's category slug (empty for settlements) so the
-          feed can show the same icon the group history and detail views do.
+          Category is the expense's category slug (empty for settlements and
+          comments) so the feed can show the same icon the group history and
+          detail views do.
         type: string
       currency:
         type: string
@@ -34,17 +35,37 @@ definitions:
         type: string
       id:
         description: |-
-          ID is the underlying expense's or settlement's id (whichever Type
-          says this event is), for opening the same detail view group history
-          rows link to.
+          ID is the underlying expense's or settlement's id (whichever Type/
+          ParentType says this event is about), for opening the same detail view
+          group history rows link to. For a "comment" event this is its parent
+          expense/settlement's id, not the comment's own id — several comments
+          on the same expense all point to that one detail view.
         type: integer
+      is_unread:
+        description: |-
+          IsUnread is true when this event happened after the user's
+          ActivityLastSeenAt and they didn't cause it themselves — same rule
+          GetUnreadActivityCount uses, computed once here so the feed can
+          highlight individual rows instead of just showing a total badge.
+        type: boolean
+      parent_title:
+        type: string
+      parent_type:
+        description: |-
+          ParentType and ParentTitle are set only for "comment" events: which
+          kind of thing (and its title/description) the comment was left on, so
+          the feed can render "commented on <ParentTitle>".
+        type: string
       title:
+        description: |-
+          Title is the expense's description, the "X paid Y" line for a
+          settlement, or the comment's own text for a comment event.
         type: string
       type:
-        description: '"expense" | "settlement"'
+        description: '"expense" | "settlement" | "comment"'
         type: string
       your_share:
-        description: cents
+        description: cents — 0 for comments
         type: integer
     type: object
   domain.Comment:
@@ -193,6 +214,8 @@ definitions:
     type: object
   domain.GroupPreview:
     properties:
+      created_by_name:
+        type: string
       currency:
         type: string
       emoji:
@@ -236,6 +259,15 @@ definitions:
     type: object
   domain.ImportPreview:
     properties:
+      currency_mismatch:
+        description: |-
+          CurrencyMismatch is set to the CSV's own currency when every row was
+          skipped for being in a different currency than the group's (e.g.
+          importing an ARS-denominated Splitwise export into a USD group) —
+          otherwise the CSV looks empty or corrupt with no indication why.
+          Empty whenever at least one row matched, or rows were skipped for
+          other reasons.
+        type: string
       member_columns:
         items:
           type: string
@@ -536,6 +568,11 @@ definitions:
       refresh_token:
         type: string
     type: object
+  handler.UnreadActivityResponse:
+    properties:
+      count:
+        type: integer
+    type: object
   handler.UnsubscribeRequest:
     properties:
       endpoint:
@@ -603,8 +640,8 @@ info:
 paths:
   /activity:
     get:
-      description: Returns recent expenses and settlements across the user's groups,
-        newest first.
+      description: Returns recent expenses, settlements and comments across the user's
+        groups, newest first.
       produces:
       - application/json
       responses:
@@ -625,6 +662,51 @@ paths:
       security:
       - JWT: []
       summary: Activity feed
+      tags:
+      - summary
+  /activity/seen:
+    post:
+      description: Records that the user has viewed the activity feed as of now, clearing
+        the unread badge.
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Mark activity as seen
+      tags:
+      - summary
+  /activity/unread-count:
+    get:
+      description: Counts activity events (expenses, settlements, comments) since
+        the user last viewed the activity feed, excluding events the user caused themselves
+        — for the tab bar badge.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.UnreadActivityResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Unread activity count
       tags:
       - summary
   /auth/google/callback:
@@ -1294,6 +1376,41 @@ paths:
       summary: Get balances/debts of a group
       tags:
       - groups
+  /groups/{id}/export.csv:
+    get:
+      description: Downloads every expense and settlement in the group as a CSV in
+        the same column shape Splitwise's own export uses — opens directly in Splitwise,
+        or back into this app via the CSV import above.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Export a group's history as a Splitwise-compatible CSV
+      tags:
+      - groups
   /groups/{id}/import:
     post:
       consumes:
@@ -1682,6 +1799,12 @@ paths:
         name: image
         required: true
         type: file
+      - description: The scanning group's currency (ISO 4217) — tells the model which
+          decimal/thousands-separator convention to expect. Defaults to the app's
+          default currency if omitted.
+        in: formData
+        name: currency
+        type: string
       produces:
       - application/json
       responses:
