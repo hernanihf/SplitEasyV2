@@ -43,9 +43,10 @@ func (h *SummaryHandler) GetHome(w http.ResponseWriter, r *http.Request) {
 
 // GetActivity godoc
 // @Summary      Activity feed
-// @Description  Returns recent expenses, settlements and comments across the user's groups, newest first.
+// @Description  Returns recent expenses, settlements and comments across the user's groups, newest first. With q set, searches the user's full history by title instead of just the most recent events.
 // @Tags         summary
 // @Produce      json
+// @Param        q    query     string  false  "Search text, matched case-insensitively against each event's title"
 // @Success      200  {array}   domain.ActivityEvent
 // @Failure      401  {string}  string  "Unauthorized"
 // @Failure      500  {string}  string  "Internal Server Error"
@@ -58,7 +59,7 @@ func (h *SummaryHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.summaryService.GetActivity(r.Context(), userID)
+	events, err := h.summaryService.GetActivity(r.Context(), userID, r.URL.Query().Get("q"))
 	if err != nil {
 		internalError(w, "failed to get activity feed", err)
 		return

@@ -641,7 +641,14 @@ paths:
   /activity:
     get:
       description: Returns recent expenses, settlements and comments across the user's
-        groups, newest first.
+        groups, newest first. With q set, searches the user's full history by title
+        instead of just the most recent events.
+      parameters:
+      - description: Search text, matched case-insensitively against each event's
+          title
+        in: query
+        name: q
+        type: string
       produces:
       - application/json
       responses:

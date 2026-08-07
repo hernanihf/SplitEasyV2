@@ -31,7 +31,7 @@ const docTemplate = `{
                         "JWT": []
                     }
                 ],
-                "description": "Returns recent expenses, settlements and comments across the user's groups, newest first.",
+                "description": "Returns recent expenses, settlements and comments across the user's groups, newest first. With q set, searches the user's full history by title instead of just the most recent events.",
                 "produces": [
                     "application/json"
                 ],
@@ -39,6 +39,14 @@ const docTemplate = `{
                     "summary"
                 ],
                 "summary": "Activity feed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search text, matched case-insensitively against each event's title",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

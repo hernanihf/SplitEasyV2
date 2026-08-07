@@ -228,7 +228,7 @@ func TestGetActivity_CarriesGroupCurrency(t *testing.T) {
 		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
-	events, err := svc.GetActivity(context.Background(), 1)
+	events, err := svc.GetActivity(context.Background(), 1, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestGetActivity_FlagsSoftDeletedExpense(t *testing.T) {
 		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
-	events, err := svc.GetActivity(context.Background(), 1)
+	events, err := svc.GetActivity(context.Background(), 1, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestGetActivity_IncludesCommentsOnExpensesAndSettlements(t *testing.T) {
 		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
 	)
 
-	events, err := svc.GetActivity(context.Background(), 1)
+	events, err := svc.GetActivity(context.Background(), 1, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -397,7 +397,7 @@ func TestGetActivity_FlagsIsUnreadPerEvent(t *testing.T) {
 		}},
 	)
 
-	events, err := svc.GetActivity(context.Background(), 1)
+	events, err := svc.GetActivity(context.Background(), 1, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -414,6 +414,55 @@ func TestGetActivity_FlagsIsUnreadPerEvent(t *testing.T) {
 	}
 	if byID[3].IsUnread {
 		t.Error("expected the user's own new event to be read")
+	}
+}
+
+func TestGetActivity_SearchReachesBeyondTheRecentCap(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	groups := []domain.Group{
+		{ID: 1, Name: "Asado", Members: []domain.User{{ID: 1, Name: "Ana"}}},
+	}
+
+	// 101 events: 100 recent filler ones, plus a "needle" older than all of
+	// them — old enough to fall outside the unsearched 100-event cap.
+	expenses := make([]domain.Expense, 0, 101)
+	for i := 0; i < 100; i++ {
+		expenses = append(expenses, domain.Expense{
+			ID: uint(i + 1), PaidByID: 1, Description: "Filler", Amount: 100,
+			CreatedAt: base.Add(time.Duration(100-i) * time.Hour),
+		})
+	}
+	expenses = append(expenses, domain.Expense{
+		ID: 999, PaidByID: 1, Description: "Needle in a haystack", Amount: 500,
+		CreatedAt: base,
+	})
+
+	svc := NewSummaryService(
+		&fakeGroupRepoForSummary{groups: groups},
+		&fakeExpenseRepoByGroup{byGroup: map[uint][]domain.Expense{1: expenses}},
+		&fakeSettlementRepoByGroup{},
+		&fakeCommentRepoForSummary{},
+		&fakeUserRepoForSummary{usersByID: map[uint]*domain.User{1: {ID: 1}}},
+	)
+
+	unsearched, err := svc.GetActivity(context.Background(), 1, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, e := range unsearched {
+		if e.ID == 999 {
+			t.Fatal("test setup invalid: needle should fall outside the unsearched cap")
+		}
+	}
+
+	// A case-insensitive search finds it anyway, since filtering happens
+	// before the cap is applied.
+	found, err := svc.GetActivity(context.Background(), 1, "NEEDLE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(found) != 1 || found[0].ID != 999 {
+		t.Fatalf("expected search to find the needle event beyond the cap, got %+v", found)
 	}
 }
 

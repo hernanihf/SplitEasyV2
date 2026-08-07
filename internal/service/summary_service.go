@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"spliteasy/internal/domain"
@@ -11,7 +12,11 @@ import (
 
 type SummaryService interface {
 	GetHomeSummary(ctx context.Context, userID uint) (*domain.HomeSummary, error)
-	GetActivity(ctx context.Context, userID uint) ([]domain.ActivityEvent, error)
+	// GetActivity returns the user's activity feed, newest first, capped at
+	// maxEvents. If query is non-empty, it's matched case-insensitively
+	// against each event's title *before* that cap is applied — so a search
+	// reaches the user's full history, not just the most recent events.
+	GetActivity(ctx context.Context, userID uint, query string) ([]domain.ActivityEvent, error)
 	// GetUnreadActivityCount counts activity events strictly after the
 	// user's ActivityLastSeenAt, excluding events the user themselves
 	// caused (you don't need a badge for your own actions). Unlike
@@ -273,13 +278,23 @@ func (s *summaryService) buildActivityEvents(ctx context.Context, userID uint) (
 	return events, nil
 }
 
-func (s *summaryService) GetActivity(ctx context.Context, userID uint) ([]domain.ActivityEvent, error) {
+func (s *summaryService) GetActivity(ctx context.Context, userID uint, query string) ([]domain.ActivityEvent, error) {
 	events, err := s.buildActivityEvents(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	const maxEvents = 40
+	if q := strings.TrimSpace(strings.ToLower(query)); q != "" {
+		matched := make([]domain.ActivityEvent, 0, len(events))
+		for _, e := range events {
+			if strings.Contains(strings.ToLower(e.Title), q) {
+				matched = append(matched, e)
+			}
+		}
+		events = matched
+	}
+
+	const maxEvents = 100
 	if len(events) > maxEvents {
 		events = events[:maxEvents]
 	}
