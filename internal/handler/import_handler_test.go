@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
@@ -28,6 +29,11 @@ type fakeImportService struct {
 	exportData     []byte
 	exportFilename string
 	exportErr      error
+
+	spendingData     []byte
+	spendingFilename string
+	spendingErr      error
+	gotFrom, gotTo   *time.Time
 }
 
 func (f *fakeImportService) ParsePreview(_ context.Context, groupID uint, _ io.Reader) (*domain.ImportPreview, error) {
@@ -45,6 +51,12 @@ func (f *fakeImportService) Import(_ context.Context, groupID, _ uint, rows []do
 func (f *fakeImportService) ExportGroupCSV(_ context.Context, groupID uint) ([]byte, string, error) {
 	f.gotGroupID = groupID
 	return f.exportData, f.exportFilename, f.exportErr
+}
+
+func (f *fakeImportService) ExportSpendingXLSX(_ context.Context, groupID uint, from, to *time.Time) ([]byte, string, error) {
+	f.gotGroupID = groupID
+	f.gotFrom, f.gotTo = from, to
+	return f.spendingData, f.spendingFilename, f.spendingErr
 }
 
 func newMultipartCSVRequest(t *testing.T, groupID, filename string, content []byte) *http.Request {
@@ -244,5 +256,72 @@ func TestExportGroupCSV_RejectsUnauthenticated(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestExportSpendingXLSX_Success(t *testing.T) {
+	fake := &fakeImportService{spendingData: []byte("fake-xlsx-bytes"), spendingFilename: "asado-spending.xlsx"}
+	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/groups/1/spending.xlsx?from=2026-01-01&to=2026-01-31", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(7)))
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h.ExportSpendingXLSX(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fake.gotGroupID != 1 {
+		t.Errorf("expected group id 1, got %d", fake.gotGroupID)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC)
+	if fake.gotFrom == nil || !fake.gotFrom.Equal(wantFrom) {
+		t.Errorf("expected from %v, got %v", wantFrom, fake.gotFrom)
+	}
+	if fake.gotTo == nil || !fake.gotTo.Equal(wantTo) {
+		t.Errorf("expected to %v, got %v", wantTo, fake.gotTo)
+	}
+	if got := rec.Header().Get("Content-Disposition"); got != `attachment; filename="asado-spending.xlsx"` {
+		t.Errorf("unexpected Content-Disposition: %q", got)
+	}
+}
+
+func TestExportSpendingXLSX_MonthQueryParamsWinOverRange(t *testing.T) {
+	fake := &fakeImportService{spendingData: []byte("x"), spendingFilename: "x.xlsx"}
+	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/groups/1/spending.xlsx?year=2026&month=2&from=2020-01-01", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(7)))
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h.ExportSpendingXLSX(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	wantFrom := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 2, 28, 23, 59, 59, 999999999, time.UTC)
+	if fake.gotFrom == nil || !fake.gotFrom.Equal(wantFrom) {
+		t.Errorf("expected from %v, got %v", wantFrom, fake.gotFrom)
+	}
+	if fake.gotTo == nil || !fake.gotTo.Equal(wantTo) {
+		t.Errorf("expected to %v, got %v", wantTo, fake.gotTo)
+	}
+}
+
+func TestExportSpendingXLSX_RejectsInvalidMonth(t *testing.T) {
+	fake := &fakeImportService{}
+	h := NewImportHandler(fake, fakeGroupServiceForBalance{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/groups/1/spending.xlsx?year=2026&month=13", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, float64(7)))
+	req = withURLParam(req, "id", "1")
+	rec := httptest.NewRecorder()
+	h.ExportSpendingXLSX(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 }

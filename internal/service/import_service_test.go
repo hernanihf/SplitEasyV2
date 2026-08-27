@@ -1,12 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 
 	"spliteasy/internal/domain"
 )
@@ -409,5 +412,90 @@ func TestMapSplitwiseCategory_KnownAndUnknown(t *testing.T) {
 		if got := mapSplitwiseCategory(input); got != want {
 			t.Errorf("mapSplitwiseCategory(%q) = %q, want %q", input, got, want)
 		}
+	}
+}
+
+func TestExportSpendingXLSX_AggregatesByCategory(t *testing.T) {
+	group := &domain.Group{ID: 1, Name: "Asado!", Currency: "ARS"}
+	expenses := []domain.Expense{
+		{ID: 1, Description: "Carne", Category: "food", Amount: 6000, CreatedAt: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)},
+		{ID: 2, Description: "Achuras", Category: "food", Amount: 4000, CreatedAt: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)},
+		{ID: 3, Description: "Nafta", Category: "fuel", Amount: 3000, CreatedAt: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)},
+		// No category at all — should still show up, bucketed as "other".
+		{ID: 4, Description: "Misc", Category: "", Amount: 1000, CreatedAt: time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC)},
+	}
+	svc, _, _, _ := newImportService(group, expenses, nil)
+
+	data, filename, err := svc.ExportSpendingXLSX(context.Background(), 1, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "asado-spending.xlsx" {
+		t.Errorf("expected filename %q, got %q", "asado-spending.xlsx", filename)
+	}
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("generated file isn't a valid workbook: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	rows, err := f.GetRows("Spending")
+	if err != nil {
+		t.Fatalf("could not read Spending sheet: %v", err)
+	}
+	// header + food (largest) + fuel + other, largest category first.
+	want := [][]string{
+		{"Category", "Total", "Percent"},
+		{"Food", "100", "71.4"},
+		{"Fuel", "30", "21.4"},
+		{"Other", "10", "7.1"},
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("Spending sheet rows = %v, want %v", rows, want)
+	}
+	for i := range want {
+		if !equalRecords(rows[i], want[i]) {
+			t.Errorf("Spending row %d = %v, want %v", i, rows[i], want[i])
+		}
+	}
+
+	details, err := f.GetRows("Details")
+	if err != nil {
+		t.Fatalf("could not read Details sheet: %v", err)
+	}
+	if len(details) != len(expenses)+1 {
+		t.Fatalf("expected %d Details rows (header + one per expense), got %d: %v", len(expenses)+1, len(details), details)
+	}
+}
+
+func TestExportSpendingXLSX_FiltersByDateRange(t *testing.T) {
+	group := &domain.Group{ID: 1, Name: "Asado", Currency: "ARS"}
+	expenses := []domain.Expense{
+		{ID: 1, Description: "Before range", Category: "food", Amount: 1000, CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{ID: 2, Description: "In range", Category: "food", Amount: 2000, CreatedAt: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC)},
+		{ID: 3, Description: "After range", Category: "food", Amount: 4000, CreatedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	svc, _, _, _ := newImportService(group, expenses, nil)
+
+	from := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 2, 28, 23, 59, 59, 0, time.UTC)
+	data, _, err := svc.ExportSpendingXLSX(context.Background(), 1, &from, &to)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("generated file isn't a valid workbook: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	rows, err := f.GetRows("Spending")
+	if err != nil {
+		t.Fatalf("could not read Spending sheet: %v", err)
+	}
+	if want := [][]string{{"Category", "Total", "Percent"}, {"Food", "20", "100"}}; len(rows) != len(want) || !equalRecords(rows[1], want[1]) {
+		t.Fatalf("Spending sheet = %v, want only the in-range expense: %v", rows, want)
 	}
 }

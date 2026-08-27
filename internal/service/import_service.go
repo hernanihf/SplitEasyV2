@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xuri/excelize/v2"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/repository"
@@ -51,6 +54,14 @@ type ImportService interface {
 	// through this app's own importer. filename is derived from the
 	// group's name for the download's Content-Disposition header.
 	ExportGroupCSV(ctx context.Context, groupID uint) (data []byte, filename string, err error)
+	// ExportSpendingXLSX builds a two-sheet workbook for the group's
+	// non-deleted expenses within [from, to] (either bound may be nil,
+	// meaning unbounded): a "Spending" sheet with one row per category
+	// (total + share of the filtered total) and a native pie chart built
+	// from it, and a "Details" sheet listing every expense in that
+	// category order. filename is derived from the group's name and the
+	// filter's bounds.
+	ExportSpendingXLSX(ctx context.Context, groupID uint, from, to *time.Time) (data []byte, filename string, err error)
 }
 
 type importService struct {
@@ -327,6 +338,153 @@ func (s *importService) ExportGroupCSV(ctx context.Context, groupID uint) ([]byt
 	return buf.Bytes(), exportFilename(group.Name), nil
 }
 
+func (s *importService) ExportSpendingXLSX(ctx context.Context, groupID uint, from, to *time.Time) ([]byte, string, error) {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, "", ErrGroupNotFound
+	}
+
+	expenses, err := s.expenseRepo.GetByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	type spendingRow struct {
+		category    string
+		description string
+		date        time.Time
+		amountCents int64
+	}
+	rows := make([]spendingRow, 0, len(expenses))
+	for _, e := range expenses {
+		if from != nil && e.CreatedAt.Before(*from) {
+			continue
+		}
+		if to != nil && e.CreatedAt.After(*to) {
+			continue
+		}
+		category := e.Category
+		if category == "" {
+			category = "other"
+		}
+		rows = append(rows, spendingRow{category, e.Description, e.CreatedAt, e.Amount})
+	}
+
+	// Category totals, largest first — same ordering the app's own pie
+	// chart uses, so the workbook's chart legend matches what the user
+	// already saw on screen.
+	totals := map[string]int64{}
+	var order []string
+	for _, r := range rows {
+		if _, seen := totals[r.category]; !seen {
+			order = append(order, r.category)
+		}
+		totals[r.category] += r.amountCents
+	}
+	sort.Slice(order, func(i, j int) bool { return totals[order[i]] > totals[order[j]] })
+	categoryRank := make(map[string]int, len(order))
+	for i, c := range order {
+		categoryRank[c] = i
+	}
+	var grandTotal int64
+	for _, t := range totals {
+		grandTotal += t
+	}
+
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+
+	// Renames excelize's default sheet rather than adding a new one, so the
+	// workbook doesn't open with a stray empty "Sheet1" tab.
+	const summarySheet = "Spending"
+	if err := f.SetSheetName("Sheet1", summarySheet); err != nil {
+		return nil, "", err
+	}
+	if err := f.SetSheetRow(summarySheet, "A1", &[]interface{}{"Category", "Total", "Percent"}); err != nil {
+		return nil, "", err
+	}
+	for i, cat := range order {
+		pct := 0.0
+		if grandTotal > 0 {
+			// Rounded to 1 decimal — the raw division is an ugly repeating
+			// decimal (e.g. 71.42857142857143) that Excel's General format
+			// would otherwise show in full.
+			pct = math.Round(float64(totals[cat])/float64(grandTotal)*1000) / 10
+		}
+		cell := fmt.Sprintf("A%d", i+2)
+		if err := f.SetSheetRow(summarySheet, cell, &[]interface{}{
+			categoryDisplayName(cat),
+			float64(totals[cat]) / 100,
+			pct,
+		}); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if len(order) > 0 {
+		lastRow := len(order) + 1
+		if err := f.AddChart(summarySheet, "E2", &excelize.Chart{
+			Type: excelize.Pie,
+			Series: []excelize.ChartSeries{{
+				Name:       summarySheet + "!$B$1",
+				Categories: fmt.Sprintf("%s!$A$2:$A$%d", summarySheet, lastRow),
+				Values:     fmt.Sprintf("%s!$B$2:$B$%d", summarySheet, lastRow),
+			}},
+			Title: excelize.ChartTitle{
+				Paragraph: []excelize.RichTextRun{{Text: "Spending by category"}},
+			},
+			Legend:   excelize.ChartLegend{Position: "right"},
+			PlotArea: excelize.ChartPlotArea{ShowPercent: true},
+		}); err != nil {
+			return nil, "", err
+		}
+	}
+
+	const detailSheet = "Details"
+	if _, err := f.NewSheet(detailSheet); err != nil {
+		return nil, "", err
+	}
+	if err := f.SetSheetRow(detailSheet, "A1", &[]interface{}{"Date", "Category", "Description", "Amount"}); err != nil {
+		return nil, "", err
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if categoryRank[rows[i].category] != categoryRank[rows[j].category] {
+			return categoryRank[rows[i].category] < categoryRank[rows[j].category]
+		}
+		return rows[i].date.After(rows[j].date)
+	})
+	for i, r := range rows {
+		cell := fmt.Sprintf("A%d", i+2)
+		if err := f.SetSheetRow(detailSheet, cell, &[]interface{}{
+			r.date.Format(csvDateLayout),
+			categoryDisplayName(r.category),
+			r.description,
+			float64(r.amountCents) / 100,
+		}); err != nil {
+			return nil, "", err
+		}
+	}
+
+	// Spending kept sheet index 0 (renamed rather than replaced above), so
+	// it's already what the workbook opens to — no explicit activation needed.
+
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		return nil, "", err
+	}
+	return buf.Bytes(), exportSpendingFilename(group.Name, from, to), nil
+}
+
+// categoryDisplayName title-cases a category slug (e.g. "food" -> "Food")
+// for a workbook that has no access to the app's own localized category
+// names, which only live in the frontend's translations.
+func categoryDisplayName(slug string) string {
+	if slug == "" {
+		slug = "other"
+	}
+	return strings.ToUpper(slug[:1]) + slug[1:]
+}
+
 // formatCents renders integer cents as a fixed 2-decimal string (e.g. -1050
 // -> "-10.50"), the inverse of parseCents.
 func formatCents(cents int64) string {
@@ -349,12 +507,13 @@ func formatCentsList(values []int64) []string {
 	return out
 }
 
-// exportFilename turns a group name into a safe ASCII CSV filename for the
-// download's Content-Disposition header, falling back to a generic name if
-// the group name has nothing but punctuation/accents to offer.
-func exportFilename(groupName string) string {
+// asciiSlug lowercases a name down to just [a-z0-9-], collapsing spaces/
+// underscores into hyphens — shared by every export filename below so a
+// Content-Disposition header never has to worry about unicode or
+// punctuation. Falls back to "group" if nothing alphanumeric survives.
+func asciiSlug(name string) string {
 	var b strings.Builder
-	for _, r := range strings.ToLower(groupName) {
+	for _, r := range strings.ToLower(name) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
 			b.WriteRune(r)
@@ -362,11 +521,35 @@ func exportFilename(groupName string) string {
 			b.WriteRune('-')
 		}
 	}
-	name := strings.Trim(b.String(), "-")
-	if name == "" {
-		name = "group"
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		slug = "group"
 	}
-	return name + "-splitwise.csv"
+	return slug
+}
+
+// exportFilename turns a group name into a safe ASCII CSV filename for the
+// download's Content-Disposition header, falling back to a generic name if
+// the group name has nothing but punctuation/accents to offer.
+func exportFilename(groupName string) string {
+	return asciiSlug(groupName) + "-splitwise.csv"
+}
+
+// exportSpendingFilename names the spending workbook after the group and,
+// when the filter is bounded, the date range it covers.
+func exportSpendingFilename(groupName string, from, to *time.Time) string {
+	name := asciiSlug(groupName) + "-spending"
+	if from != nil || to != nil {
+		fromStr, toStr := "start", "end"
+		if from != nil {
+			fromStr = from.Format(csvDateLayout)
+		}
+		if to != nil {
+			toStr = to.Format(csvDateLayout)
+		}
+		name += "-" + fromStr + "-to-" + toStr
+	}
+	return name + ".xlsx"
 }
 
 // splitwiseCategoryName reverse-maps one of our category slugs back to a

@@ -1648,6 +1648,63 @@ paths:
       summary: Settle a debt
       tags:
       - groups
+  /groups/{id}/spending.xlsx:
+    get:
+      description: Downloads a workbook with a "Spending" sheet (category totals plus
+        a native pie chart matching the app's own) and a "Details" sheet (every expense,
+        grouped in that same category order) — scoped to an optional date filter.
+        Pass year+month for a calendar month, from/to (YYYY-MM-DD, "to" inclusive)
+        for an arbitrary range, or nothing for the group's full history.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Calendar year — pairs with month
+        in: query
+        name: year
+        type: integer
+      - description: Calendar month, 1-12 — requires year
+        in: query
+        name: month
+        type: integer
+      - description: Range start, YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: Range end (inclusive), YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Export a group's category spending as an Excel workbook
+      tags:
+      - groups
   /groups/join:
     post:
       consumes:

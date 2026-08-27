@@ -215,6 +215,7 @@ func main() {
 			r.Delete("/groups/{id}", groupHandler.DeleteGroup)
 			r.Get("/groups/{id}/invite", groupHandler.GetInvite)
 			r.Get("/groups/{id}/export.csv", importHandler.ExportGroupCSV)
+			r.Get("/groups/{id}/spending.xlsx", importHandler.ExportSpendingXLSX)
 			r.Get("/groups/{id}/balances", balanceHandler.GetGroupBalances)
 			r.Get("/groups/{id}/settlements", balanceHandler.ListSettlements)
 			r.Post("/groups/{id}/settlements", balanceHandler.SettleDebt)

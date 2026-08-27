@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"time"
 
 	"spliteasy/internal/domain"
 	"spliteasy/internal/handler/middleware"
@@ -188,4 +190,87 @@ func (h *ImportHandler) ExportGroupCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// ExportSpendingXLSX godoc
+// @Summary      Export a group's category spending as an Excel workbook
+// @Description  Downloads a workbook with a "Spending" sheet (category totals plus a native pie chart matching the app's own) and a "Details" sheet (every expense, grouped in that same category order) — scoped to an optional date filter. Pass year+month for a calendar month, from/to (YYYY-MM-DD, "to" inclusive) for an arbitrary range, or nothing for the group's full history.
+// @Tags         groups
+// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Param        id     path      int     true   "Group ID"
+// @Param        year   query     int     false  "Calendar year — pairs with month"
+// @Param        month  query     int     false  "Calendar month, 1-12 — requires year"
+// @Param        from   query     string  false  "Range start, YYYY-MM-DD"
+// @Param        to     query     string  false  "Range end (inclusive), YYYY-MM-DD"
+// @Success      200  {file}    file
+// @Failure      400  {string}  string  "Bad Request"
+// @Failure      401  {string}  string  "Unauthorized"
+// @Failure      403  {string}  string  "Forbidden"
+// @Failure      404  {string}  string  "Not Found"
+// @Security     JWT
+// @Router       /groups/{id}/spending.xlsx [get]
+func (h *ImportHandler) ExportSpendingXLSX(w http.ResponseWriter, r *http.Request) {
+	groupID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if !authorizeGroupAccess(w, r, h.groupService, uint(groupID)) {
+		return
+	}
+
+	from, to, err := parseSpendingDateFilter(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	data, filename, err := h.importService.ExportSpendingXLSX(r.Context(), uint(groupID), from, to)
+	if err != nil {
+		if errors.Is(err, service.ErrGroupNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		internalError(w, "failed to export spending workbook", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data) // #nosec G705 -- data is a generated xlsx binary, not reflected query text; gosec's taint tracker just can't see that far through ExportSpendingXLSX
+}
+
+// parseSpendingDateFilter reads either "year"+"month" (a calendar month) or
+// "from"/"to" (an arbitrary range, "to" inclusive through end of day) into a
+// from/to bound pair — every param is optional, and year+month wins if both
+// styles are somehow present at once.
+func parseSpendingDateFilter(q url.Values) (from, to *time.Time, err error) {
+	if yearStr := q.Get("year"); yearStr != "" {
+		year, yearErr := strconv.Atoi(yearStr)
+		month, monthErr := strconv.Atoi(q.Get("month"))
+		if yearErr != nil || monthErr != nil || month < 1 || month > 12 {
+			return nil, nil, errors.New("invalid year/month")
+		}
+		start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+		end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+		return &start, &end, nil
+	}
+
+	if fromStr := q.Get("from"); fromStr != "" {
+		t, parseErr := time.Parse("2006-01-02", fromStr)
+		if parseErr != nil {
+			return nil, nil, errors.New("invalid from")
+		}
+		from = &t
+	}
+	if toStr := q.Get("to"); toStr != "" {
+		t, parseErr := time.Parse("2006-01-02", toStr)
+		if parseErr != nil {
+			return nil, nil, errors.New("invalid to")
+		}
+		endOfDay := t.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+		to = &endOfDay
+	}
+	return from, to, nil
 }
